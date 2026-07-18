@@ -30,7 +30,7 @@ Flutter-клиент eblo.id для iOS и Android с одной кодовой 
 - Один Material 3 UI tree для iOS и Android.
 - `go_router` для общего route graph.
 - Riverpod для repository/controller composition.
-- Dio только для публичных `GET` без cookies, token и write requests.
+- Dio получает HTTPS origin из проверенной build configuration; текущий runtime использует его только для подтверждённых public read paths.
 - Repository/provider defaults являются unavailable adapters; `main.dart` подключает реальные read-only repositories.
 - Draft storage использует Android Keystore-backed defaults и iOS Keychain без insecure fallback.
 - Web session foundation хранит только validated eblo.id cookies и CSRF token в Keychain/Keystore-backed secure storage; direct mutations блокируются при storage failure, public GET продолжают работать.
@@ -40,11 +40,11 @@ Flutter-клиент eblo.id для iOS и Android с одной кодовой 
 
 ## Environments
 
-- `dev/read-only`: текущий runtime с публичными feed, comments, profile uploads и videos endpoints.
-- `staging`: не подключён; требует approved auth, API, upload и deep-link configuration.
-- `production`: не подключён.
+- `development`: текущий runtime с публичными feed, comments, profile uploads и videos endpoints; выбран по умолчанию.
+- `staging`: выбирается через `--dart-define=APP_ENV=staging` и требует явный HTTPS `API_BASE_URL`.
+- `production`: выбирается через `--dart-define=APP_ENV=production`; до закрытия production contracts остаётся read-only.
 
-Runtime secrets и environment variables сейчас отсутствуют. Base URL временно зафиксирован в `ApiClient` как наблюдаемый public host и должен перейти в build configuration до staging.
+`API_BASE_URL` принимает только HTTPS origin без credentials, path, query и fragment. Secrets через Dart defines не передаются.
 
 ## TODO(API)
 
@@ -61,6 +61,7 @@ flutter analyze
 flutter test
 flutter devices
 flutter run -d <device-id>
+flutter run -d <device-id> --dart-define=APP_ENV=staging --dart-define=API_BASE_URL="$API_BASE_URL"
 ```
 
 `flutter run` запускает public read-only runtime. Tests не выполняют сетевые запросы и не подменяют приложение fake business data.
