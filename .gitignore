@@ -1,0 +1,30 @@
+# OpenCode local state and secrets
+.opencode/.env
+.opencode/memory.jsonl
+.opencode/node_modules/
+.opencode/package-lock.json
+
+# Flutter/Dart generated files
+.dart_tool/
+.flutter-plugins
+.flutter-plugins-dependencies
+.packages
+build/
+coverage/
+
+# IDE and local artifacts
+.DS_Store
+.idea/
+.vscode/
+*.iml
+*.log
+cookies.txt
+.playwright-mcp/
+.opencode/playwright-profile/
+eblo-flutter-opencode-handoff.zip
+
+# Platform-generated private files
+android/key.properties
+android/local.properties
+ios/Flutter/Generated.xcconfig
+ios/Flutter/flutter_export_environment.sh
