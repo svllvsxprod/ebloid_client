@@ -6,14 +6,15 @@ Flutter-клиент eblo.id для iOS и Android с одной кодовой 
 
 - Обычный debug runtime использует публичный read-only API eblo.id для ленты, комментариев, публикаций профиля и раздела видео.
 - Реализованы фильтры, сортировки, pagination, media/avatar URLs и routes `/feed`, `/post/:shortCode`, `/create`, `/videos`, `/profile`, `/profile/:login`, `/auth/twitch`.
-- Поиск использует public `GET /api/search/all`: профили открываются нативно, post/video results с неполным DTO — через проверенный HTTPS system-browser adapter.
+- Поиск использует public `GET /api/search/all`: профили и image/video posts открываются нативно, video suggestions — через проверенный HTTPS system-browser adapter.
 - Public media принимается по HTTPS; относительные URL разрешаются от `https://eblo.id`.
 - Доступные публичные посты отправляются через системный share sheet с канонической ссылкой `https://eblo.id/{shortCode}`.
 - Detail использует native playback: `video_player` для server-defined video и `just_audio` для audio; autoplay отключён, ошибки codec/container изолированы внутри media shell.
 - Audio cards используют отдельный waveform preview без несуществующего thumbnail; author rows открывают public profile и возвращаются через обычный route stack.
 - Video controls скрываются по tap/таймеру; fullscreen использует тот же controller и сохраняет playback position.
 - Create использует системный multi-file picker для изображений, видео и аудио; локальный черновик сохраняет порядок и media handles в secure storage и повторно проверяет их доступность после restart.
-- Upload/publish, reactions, comment mutations, owner profile и Twitch OAuth не имитируются: неподтверждённые действия скрыты или показывают контрактный blocker.
+- Cold post detail получает проверенные image/video fields из public HTML и затем загружает comments; неподтверждённые audio/album структуры контролируемо отклоняются.
+- Upload/publish, reactions, comment mutations, owner profile и native Twitch session не имитируются: неподтверждённые действия скрыты или показывают контрактный blocker.
 - Business fixtures, local media assets и fake repositories отсутствуют.
 - Игры исключены из mobile scope решением владельца продукта.
 

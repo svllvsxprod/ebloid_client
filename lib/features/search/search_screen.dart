@@ -199,9 +199,7 @@ class _SearchResultTile extends ConsumerWidget {
             pathParameters: {'login': item.target},
           );
         case SearchResultKind.post:
-          await ref
-              .read(externalUrlAdapterProvider)
-              .open(canonicalPostUri(item.target));
+          context.pushNamed('post', pathParameters: {'shortCode': item.target});
         case SearchResultKind.video:
           await ref
               .read(externalUrlAdapterProvider)
