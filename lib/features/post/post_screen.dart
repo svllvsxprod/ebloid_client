@@ -13,9 +13,10 @@ import 'post_controller.dart';
 import 'post_media.dart';
 
 class PostScreen extends ConsumerStatefulWidget {
-  const PostScreen({super.key, required this.shortCode});
+  const PostScreen({super.key, required this.shortCode, this.focusedCommentId});
 
   final String shortCode;
+  final String? focusedCommentId;
 
   @override
   ConsumerState<PostScreen> createState() => _PostScreenState();
@@ -68,7 +69,11 @@ class _PostScreenState extends ConsumerState<PostScreen> {
             ),
         ],
       ),
-      body: _PostBody(state: state, shortCode: widget.shortCode),
+      body: _PostBody(
+        state: state,
+        shortCode: widget.shortCode,
+        focusedCommentId: widget.focusedCommentId,
+      ),
       bottomNavigationBar: canComment ? const _CommentComposer() : null,
     );
   }
@@ -91,10 +96,15 @@ class _PostScreenState extends ConsumerState<PostScreen> {
 }
 
 class _PostBody extends ConsumerWidget {
-  const _PostBody({required this.state, required this.shortCode});
+  const _PostBody({
+    required this.state,
+    required this.shortCode,
+    this.focusedCommentId,
+  });
 
   final PostControllerState state;
   final String shortCode;
+  final String? focusedCommentId;
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
@@ -173,7 +183,10 @@ class _PostBody extends ConsumerWidget {
           child: RefreshIndicator(
             key: const Key('post-refresh'),
             onRefresh: () => controller.load(shortCode),
-            child: _PostContent(detail: detail),
+            child: _PostContent(
+              detail: detail,
+              focusedCommentId: focusedCommentId,
+            ),
           ),
         ),
       ],
@@ -210,21 +223,72 @@ class _PostStatusBanner extends StatelessWidget {
 }
 
 class _PostContent extends ConsumerStatefulWidget {
-  const _PostContent({required this.detail});
+  const _PostContent({required this.detail, this.focusedCommentId});
 
   final PostDetail detail;
+  final String? focusedCommentId;
 
   @override
   ConsumerState<_PostContent> createState() => _PostContentState();
 }
 
 class _PostContentState extends ConsumerState<_PostContent> {
+  final _focusedCommentKey = GlobalKey();
+  final _focusedCommentNode = FocusNode(debugLabel: 'focused-comment');
+  String? _scheduledCommentId;
+
+  @override
+  void dispose() {
+    _focusedCommentNode.dispose();
+    super.dispose();
+  }
+
+  @override
+  void initState() {
+    super.initState();
+    _scheduleCommentFocus();
+  }
+
+  @override
+  void didUpdateWidget(covariant _PostContent oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (oldWidget.focusedCommentId != widget.focusedCommentId ||
+        oldWidget.detail.comments != widget.detail.comments) {
+      _scheduledCommentId = null;
+      _scheduleCommentFocus();
+    }
+  }
+
+  void _scheduleCommentFocus() {
+    final id = widget.focusedCommentId;
+    if (id == null || id == _scheduledCommentId) return;
+    _scheduledCommentId = id;
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted) return;
+      final target = _focusedCommentKey.currentContext;
+      if (target == null) return;
+      Scrollable.ensureVisible(
+        target,
+        duration: MediaQuery.disableAnimationsOf(context)
+            ? Duration.zero
+            : const Duration(milliseconds: 240),
+        alignment: .12,
+      );
+      _focusedCommentNode.requestFocus();
+    });
+  }
+
   @override
   Widget build(BuildContext context) {
     final detail = widget.detail;
     final post = detail.summary;
     final colors = context.appColors;
     final comments = detail.comments;
+    final focusedCommentFound = widget.focusedCommentId == null
+        ? true
+        : comments.any(
+            (comment) => commentContains(comment, widget.focusedCommentId!),
+          );
     final canOpenProfile = isValidProfileLogin(post.author.id);
     return ListView(
       padding: const EdgeInsets.only(bottom: AppSpacing.xxl * 4),
@@ -290,6 +354,21 @@ class _PostContentState extends ConsumerState<_PostContent> {
             ),
           ),
         ),
+        if (!focusedCommentFound)
+          Padding(
+            padding: const EdgeInsets.fromLTRB(
+              AppSpacing.md,
+              AppSpacing.sm,
+              AppSpacing.md,
+              0,
+            ),
+            child: Text(
+              'Указанный комментарий не найден.',
+              style: Theme.of(
+                context,
+              ).textTheme.bodyMedium?.copyWith(color: colors.muted),
+            ),
+          ),
         PostMedia(post: post),
         Padding(
           padding: const EdgeInsets.fromLTRB(16, 18, 16, 16),
@@ -393,7 +472,12 @@ class _PostContentState extends ConsumerState<_PostContent> {
           for (final comment in comments)
             Padding(
               padding: const EdgeInsets.symmetric(horizontal: AppSpacing.md),
-              child: CommentThread(comment: comment),
+              child: CommentThread(
+                comment: comment,
+                focusedCommentId: widget.focusedCommentId,
+                focusedCommentKey: _focusedCommentKey,
+                focusedCommentNode: _focusedCommentNode,
+              ),
             ),
       ],
     );

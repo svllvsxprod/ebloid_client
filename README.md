@@ -13,7 +13,8 @@ Flutter-клиент eblo.id для iOS и Android с одной кодовой 
 - Audio cards используют отдельный waveform preview без несуществующего thumbnail; author rows открывают public profile и возвращаются через обычный route stack.
 - Video controls скрываются по tap/таймеру; fullscreen использует тот же controller и сохраняет playback position.
 - Create использует системный multi-file picker для изображений, видео и аудио; локальный черновик сохраняет порядок и media handles в secure storage и повторно проверяет их доступность после restart.
-- Cold post detail получает проверенные image/video fields из public HTML и затем загружает comments; неподтверждённые audio/album структуры контролируемо отклоняются.
+- Cold post detail получает проверенные image/video/audio/album fields из public HTML и затем загружает comments; mixed album сохраняет server DOM order.
+- Deep link `/post/:shortCode/comment/:commentId` раскрывает вложенную ветку, прокручивает к комментарию и визуально/семантически выделяет его.
 - Upload/publish, reactions, comment mutations, owner profile и native Twitch session не имитируются: неподтверждённые действия скрыты или показывают контрактный blocker.
 - Business fixtures, local media assets и fake repositories отсутствуют.
 - Игры исключены из mobile scope решением владельца продукта.
