@@ -1,8 +1,15 @@
+import 'dart:math';
+
 import 'package:characters/characters.dart';
 
 import 'post.dart';
 
 const int createPostTitleMaxGraphemes = 90;
+const int createPostDescriptionMaxCodeUnits = 1000;
+const int createPostMaxFiles = 10;
+const int createPostMaxBytes = 200 * 1024 * 1024;
+
+enum PostVisibility { public, unlisted }
 
 enum UploadPhase {
   idle,
@@ -77,20 +84,24 @@ final class LocalMediaRef {
 final class CreatePostDraft {
   const CreatePostDraft({
     required this.id,
+    required this.uploadId,
     required this.updatedAt,
     this.title = '',
     this.description = '',
     this.notForStream = false,
     this.allowComments = true,
+    this.visibility = PostVisibility.unlisted,
     this.media = const [],
   });
 
   final String id;
+  final String uploadId;
   final DateTime updatedAt;
   final String title;
   final String description;
   final bool notForStream;
   final bool allowComments;
+  final PostVisibility visibility;
   final List<LocalMediaRef> media;
 
   int get titleGraphemeLength => title.characters.length;
@@ -102,7 +113,8 @@ final class CreatePostDraft {
         description.isEmpty &&
         media.isEmpty &&
         !notForStream &&
-        allowComments;
+        allowComments &&
+        visibility == PostVisibility.unlisted;
   }
 
   CreatePostDraft copyWith({
@@ -111,15 +123,18 @@ final class CreatePostDraft {
     String? description,
     bool? notForStream,
     bool? allowComments,
+    PostVisibility? visibility,
     List<LocalMediaRef>? media,
   }) {
     return CreatePostDraft(
       id: id,
+      uploadId: uploadId,
       updatedAt: updatedAt ?? this.updatedAt,
       title: title ?? this.title,
       description: description ?? this.description,
       notForStream: notForStream ?? this.notForStream,
       allowComments: allowComments ?? this.allowComments,
+      visibility: visibility ?? this.visibility,
       media: media ?? this.media,
     );
   }
@@ -146,12 +161,14 @@ final class UploadProgress {
     required this.phase,
     this.files = const [],
     this.errorCode,
+    this.errorMessage,
     this.publishedShortCode,
   });
 
   final UploadPhase phase;
   final List<FileUploadProgress> files;
   final String? errorCode;
+  final String? errorMessage;
   final String? publishedShortCode;
 
   double get totalFraction {
@@ -160,6 +177,21 @@ final class UploadProgress {
     final total = files.fold<int>(0, (sum, file) => sum + file.totalBytes);
     return total == 0 ? 0 : sent / total;
   }
+}
+
+String generateUploadId() {
+  final random = Random.secure();
+  final bytes = List<int>.generate(16, (_) => random.nextInt(256));
+  bytes[6] = (bytes[6] & 0x0f) | 0x40;
+  bytes[8] = (bytes[8] & 0x3f) | 0x80;
+  final value = bytes
+      .map((byte) => byte.toRadixString(16).padLeft(2, '0'))
+      .join();
+  return '${value.substring(0, 8)}-'
+      '${value.substring(8, 12)}-'
+      '${value.substring(12, 16)}-'
+      '${value.substring(16, 20)}-'
+      '${value.substring(20)}';
 }
 
 final class PublishResult {

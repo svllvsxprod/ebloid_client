@@ -10,6 +10,7 @@ import '../../core/domain/create_post.dart';
 import '../../core/domain/post.dart';
 import '../../core/platform/platform_adapters.dart';
 import '../../core/widgets/widgets.dart';
+import '../auth/auth_controller.dart';
 import 'create_post_controller.dart';
 
 class CreatePostScreen extends ConsumerStatefulWidget {
@@ -78,6 +79,32 @@ class _CreatePostScreenState extends ConsumerState<CreatePostScreen>
         ),
       );
     }
+    final auth = ref.watch(authControllerProvider);
+    if (auth.isLoading) {
+      return const Scaffold(
+        body: Center(
+          child: CircularProgressIndicator(semanticsLabel: 'Проверка входа'),
+        ),
+      );
+    }
+    if (auth.value != true) {
+      return Scaffold(
+        appBar: AppTopBar(
+          title: 'Новая публикация',
+          leading: IconButton(
+            tooltip: 'Вернуться в ленту',
+            onPressed: () => context.goNamed('feed'),
+            icon: const Icon(Icons.close_rounded),
+          ),
+        ),
+        body: StateView.unauthorized(
+          title: 'Войдите для публикации',
+          body: 'Черновик сохранится, а после входа можно продолжить.',
+          actionLabel: 'Войти через Twitch',
+          onAction: () => context.pushNamed('auth-twitch'),
+        ),
+      );
+    }
     final state = ref.watch(createPostControllerProvider);
     final draft = state.draft;
     final publishAvailable = ref.watch(publishAvailableProvider);
@@ -111,11 +138,14 @@ class _CreatePostScreenState extends ConsumerState<CreatePostScreen>
             ? StateView(
                 variant: StateViewVariant.success,
                 title: 'Публикация создана',
-                body:
-                    'Код: ${state.upload.publishedShortCode}. '
-                    'Remote detail появится после PUBLISH-01.',
-                actionLabel: 'Вернуться в ленту',
-                onAction: () => context.goNamed('feed'),
+                body: 'Код: ${state.upload.publishedShortCode}.',
+                actionLabel: 'Открыть публикацию',
+                onAction: () => context.goNamed(
+                  'post',
+                  pathParameters: {
+                    'shortCode': state.upload.publishedShortCode!,
+                  },
+                ),
                 icon: Icons.check_circle_outline_rounded,
               )
             : ListView(
@@ -162,12 +192,21 @@ class _CreatePostScreenState extends ConsumerState<CreatePostScreen>
                     enabled: !_publishing,
                     minLines: 4,
                     maxLines: 8,
+                    maxLength: createPostDescriptionMaxCodeUnits,
                     onChanged: _onDescriptionChanged,
                     decoration: const InputDecoration(
                       labelText: 'Описание',
                       hintText: 'Добавьте детали или ссылку',
                       helperText: 'Необязательно',
                     ),
+                  ),
+                  const SizedBox(height: AppSpacing.md),
+                  _VisibilityControl(
+                    value: draft.visibility,
+                    enabled: !_publishing,
+                    onChanged: ref
+                        .read(createPostControllerProvider.notifier)
+                        .setVisibility,
                   ),
                   const SizedBox(height: AppSpacing.md),
                   _DraftSwitch(
@@ -183,9 +222,9 @@ class _CreatePostScreenState extends ConsumerState<CreatePostScreen>
                   _DraftSwitch(
                     title: 'Разрешить комментарии',
                     description:
-                        'После публикации пользователи смогут обсуждать пост.',
+                        'Текущий сервер всегда создаёт публикацию с комментариями.',
                     value: draft.allowComments,
-                    enabled: !_publishing,
+                    enabled: false,
                     onChanged: ref
                         .read(createPostControllerProvider.notifier)
                         .setAllowComments,
@@ -217,7 +256,7 @@ class _CreatePostScreenState extends ConsumerState<CreatePostScreen>
                     const SizedBox(height: AppSpacing.xs),
                     Text(
                       'Медиа и черновик сохраняются локально. Отправка появится '
-                      'после UPLOAD-01 и PUBLISH-01.',
+                      'после подтверждения серверного контракта.',
                       textAlign: TextAlign.center,
                       style: Theme.of(context).textTheme.bodySmall?.copyWith(
                         color: context.appColors.muted,
@@ -254,6 +293,10 @@ class _CreatePostScreenState extends ConsumerState<CreatePostScreen>
       await ref.read(createPostControllerProvider.notifier).restore();
       final controller = ref.read(createPostControllerProvider.notifier);
       var draft = ref.read(createPostControllerProvider).draft;
+      if (!draft.allowComments) {
+        await controller.setAllowComments(true);
+        draft = ref.read(createPostControllerProvider).draft;
+      }
       if (draft.media.isNotEmpty) {
         final picker = ref.read(mediaPickerAdapterProvider);
         final media = await Future.wait(
@@ -298,6 +341,18 @@ class _CreatePostScreenState extends ConsumerState<CreatePostScreen>
     try {
       final media = await ref.read(mediaPickerAdapterProvider).pickMedia();
       if (media.isEmpty) return;
+      final existing = ref
+          .read(createPostControllerProvider)
+          .draft
+          .media
+          .length;
+      if (existing + media.length > createPostMaxFiles) {
+        if (!mounted) return;
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Можно выбрать не больше 10 файлов.')),
+        );
+        return;
+      }
       await ref.read(createPostControllerProvider.notifier).addMediaAll(media);
     } on Object {
       if (!mounted) return;
@@ -320,9 +375,7 @@ class _CreatePostScreenState extends ConsumerState<CreatePostScreen>
     }
     setState(() => _publishing = true);
     await for (final progress
-        in ref
-            .read(createPostControllerProvider.notifier)
-            .publish(idempotencyKey: draft.id)) {
+        in ref.read(createPostControllerProvider.notifier).publish()) {
       if (!mounted) return;
       if (progress.phase == UploadPhase.failed ||
           progress.phase == UploadPhase.cancelled ||
@@ -574,6 +627,58 @@ class _DashedDropzonePainter extends CustomPainter {
   }
 }
 
+class _VisibilityControl extends StatelessWidget {
+  const _VisibilityControl({
+    required this.value,
+    required this.enabled,
+    required this.onChanged,
+  });
+
+  final PostVisibility value;
+  final bool enabled;
+  final ValueChanged<PostVisibility> onChanged;
+
+  @override
+  Widget build(BuildContext context) {
+    return Semantics(
+      label: 'Видимость публикации',
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(
+            'Видимость',
+            style: Theme.of(
+              context,
+            ).textTheme.titleSmall?.copyWith(fontWeight: FontWeight.w700),
+          ),
+          const SizedBox(height: AppSpacing.xs),
+          SizedBox(
+            width: double.infinity,
+            child: SegmentedButton<PostVisibility>(
+              segments: const [
+                ButtonSegment(
+                  value: PostVisibility.unlisted,
+                  label: Text('По ссылке'),
+                  icon: Icon(Icons.link_rounded),
+                ),
+                ButtonSegment(
+                  value: PostVisibility.public,
+                  label: Text('В ленте'),
+                  icon: Icon(Icons.public_rounded),
+                ),
+              ],
+              selected: {value},
+              onSelectionChanged: enabled
+                  ? (selection) => onChanged(selection.single)
+                  : null,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
 class _DraftSwitch extends StatelessWidget {
   const _DraftSwitch({
     required this.title,
@@ -663,7 +768,7 @@ class _UploadPanel extends StatelessWidget {
               if (progress.errorCode != null) ...[
                 const SizedBox(height: AppSpacing.xs),
                 Text(
-                  'Код ошибки: ${progress.errorCode}',
+                  progress.errorMessage ?? 'Код ошибки: ${progress.errorCode}',
                   style: TextStyle(color: Theme.of(context).colorScheme.error),
                 ),
               ],

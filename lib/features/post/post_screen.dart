@@ -23,6 +23,8 @@ class PostScreen extends ConsumerStatefulWidget {
 }
 
 class _PostScreenState extends ConsumerState<PostScreen> {
+  Comment? _replyTarget;
+
   @override
   void initState() {
     super.initState();
@@ -73,8 +75,14 @@ class _PostScreenState extends ConsumerState<PostScreen> {
         state: state,
         shortCode: widget.shortCode,
         focusedCommentId: widget.focusedCommentId,
+        onReply: (comment) => setState(() => _replyTarget = comment),
       ),
-      bottomNavigationBar: canComment ? const _CommentComposer() : null,
+      bottomNavigationBar: canComment
+          ? _CommentComposer(
+              replyTarget: _replyTarget,
+              onCancelReply: () => setState(() => _replyTarget = null),
+            )
+          : null,
     );
   }
 
@@ -100,11 +108,13 @@ class _PostBody extends ConsumerWidget {
     required this.state,
     required this.shortCode,
     this.focusedCommentId,
+    this.onReply,
   });
 
   final PostControllerState state;
   final String shortCode;
   final String? focusedCommentId;
+  final ValueChanged<Comment>? onReply;
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
@@ -186,6 +196,7 @@ class _PostBody extends ConsumerWidget {
             child: _PostContent(
               detail: detail,
               focusedCommentId: focusedCommentId,
+              onReply: onReply,
             ),
           ),
         ),
@@ -223,10 +234,15 @@ class _PostStatusBanner extends StatelessWidget {
 }
 
 class _PostContent extends ConsumerStatefulWidget {
-  const _PostContent({required this.detail, this.focusedCommentId});
+  const _PostContent({
+    required this.detail,
+    this.focusedCommentId,
+    this.onReply,
+  });
 
   final PostDetail detail;
   final String? focusedCommentId;
+  final ValueChanged<Comment>? onReply;
 
   @override
   ConsumerState<_PostContent> createState() => _PostContentState();
@@ -406,8 +422,10 @@ class _PostContentState extends ConsumerState<_PostContent> {
               VoteControl(
                 score: post.counters.score,
                 reaction: post.userReaction,
-                onVote: post.permissions.canReact
-                    ? ref.read(postControllerProvider.notifier).react
+                onVote:
+                    post.permissions.canReact &&
+                        !ref.watch(postControllerProvider).reactionPending
+                    ? _react
                     : null,
               ),
               CounterActionButton(
@@ -477,15 +495,30 @@ class _PostContentState extends ConsumerState<_PostContent> {
                 focusedCommentId: widget.focusedCommentId,
                 focusedCommentKey: _focusedCommentKey,
                 focusedCommentNode: _focusedCommentNode,
+                onReply: widget.onReply,
               ),
             ),
       ],
     );
   }
+
+  Future<void> _react(Reaction reaction) async {
+    await ref.read(postControllerProvider.notifier).react(reaction);
+    if (!mounted) return;
+    final failure = ref.read(postControllerProvider).failure;
+    if (failure != null) {
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text(failure.message)));
+    }
+  }
 }
 
 class _CommentComposer extends ConsumerStatefulWidget {
-  const _CommentComposer();
+  const _CommentComposer({this.replyTarget, required this.onCancelReply});
+
+  final Comment? replyTarget;
+  final VoidCallback onCancelReply;
 
   @override
   ConsumerState<_CommentComposer> createState() => _CommentComposerState();
@@ -513,18 +546,35 @@ class _CommentComposerState extends ConsumerState<_CommentComposer> {
           child: Padding(
             padding: const EdgeInsets.all(AppSpacing.sm),
             child: Row(
+              crossAxisAlignment: CrossAxisAlignment.end,
               children: [
                 Expanded(
-                  child: TextField(
-                    controller: _textController,
-                    enabled: !_sending,
-                    minLines: 1,
-                    maxLines: 4,
-                    textInputAction: TextInputAction.newline,
-                    decoration: const InputDecoration(
-                      hintText: 'Написать комментарий',
-                      semanticCounterText: 'Черновик комментария',
-                    ),
+                  child: Column(
+                    mainAxisSize: MainAxisSize.min,
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      if (widget.replyTarget case final target?)
+                        InputChip(
+                          label: Text(
+                            'Ответ для ${target.author.displayName}',
+                            overflow: TextOverflow.ellipsis,
+                          ),
+                          onDeleted: _sending ? null : widget.onCancelReply,
+                        ),
+                      TextField(
+                        controller: _textController,
+                        enabled: !_sending,
+                        minLines: 1,
+                        maxLines: 4,
+                        maxLength: 2000,
+                        textInputAction: TextInputAction.newline,
+                        decoration: const InputDecoration(
+                          hintText: 'Написать комментарий',
+                          semanticCounterText: 'Черновик комментария',
+                          counterText: '',
+                        ),
+                      ),
+                    ],
                   ),
                 ),
                 const SizedBox(width: AppSpacing.xs),
@@ -550,12 +600,15 @@ class _CommentComposerState extends ConsumerState<_CommentComposer> {
     final body = _textController.text.trim();
     if (body.isEmpty) return;
     setState(() => _sending = true);
-    await ref.read(postControllerProvider.notifier).addComment(body);
+    await ref
+        .read(postControllerProvider.notifier)
+        .addComment(body, parentId: widget.replyTarget?.id);
     if (!mounted) return;
     final state = ref.read(postControllerProvider);
     setState(() => _sending = false);
     if (state.pendingCommentBody.isEmpty) {
       _textController.clear();
+      widget.onCancelReply();
       ScaffoldMessenger.of(
         context,
       ).showSnackBar(const SnackBar(content: Text('Комментарий отправлен')));

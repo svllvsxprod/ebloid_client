@@ -207,6 +207,7 @@ final class PostSummary {
     PostCounters? counters,
     Reaction? userReaction,
     PostAvailability? availability,
+    PostPermissions? permissions,
   }) {
     return PostSummary(
       id: id,
@@ -220,7 +221,7 @@ final class PostSummary {
       availability: availability ?? this.availability,
       isStreamSafe: isStreamSafe,
       userReaction: userReaction ?? this.userReaction,
-      permissions: permissions,
+      permissions: permissions ?? this.permissions,
     );
   }
 }
@@ -279,6 +280,28 @@ final class Comment {
   final Reaction userReaction;
   final CommentPermissions permissions;
   final List<Comment> replies;
+
+  Comment copyWith({
+    int? score,
+    Reaction? userReaction,
+    CommentPermissions? permissions,
+    List<Comment>? replies,
+  }) {
+    return Comment(
+      id: id,
+      postId: postId,
+      parentId: parentId,
+      author: author,
+      createdAt: createdAt,
+      editedAt: editedAt,
+      body: body,
+      score: score ?? this.score,
+      state: state,
+      userReaction: userReaction ?? this.userReaction,
+      permissions: permissions ?? this.permissions,
+      replies: replies ?? this.replies,
+    );
+  }
 }
 
 bool _listEquals<T>(List<T> a, List<T> b) {
