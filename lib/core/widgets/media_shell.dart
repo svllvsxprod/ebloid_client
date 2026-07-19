@@ -16,6 +16,7 @@ class MediaShell extends StatelessWidget {
     this.body,
     this.onRetry,
     this.borderRadius,
+    this.aspectRatio,
   });
 
   const MediaShell.feed({
@@ -26,6 +27,7 @@ class MediaShell extends StatelessWidget {
     this.body,
     this.onRetry,
     this.borderRadius = AppRadius.media,
+    this.aspectRatio,
   }) : aspect = MediaShellAspect.feed;
 
   const MediaShell.detail({
@@ -36,6 +38,7 @@ class MediaShell extends StatelessWidget {
     this.body,
     this.onRetry,
     this.borderRadius = BorderRadius.zero,
+    this.aspectRatio,
   }) : aspect = MediaShellAspect.detail;
 
   final MediaShellAspect aspect;
@@ -45,11 +48,14 @@ class MediaShell extends StatelessWidget {
   final String? body;
   final VoidCallback? onRetry;
   final BorderRadius? borderRadius;
+  final double? aspectRatio;
 
-  double get _ratio => switch (aspect) {
-    MediaShellAspect.feed => 16 / 10,
-    MediaShellAspect.detail => 16 / 11,
-  };
+  double get _ratio =>
+      aspectRatio ??
+      switch (aspect) {
+        MediaShellAspect.feed => 16 / 10,
+        MediaShellAspect.detail => 16 / 11,
+      };
 
   @override
   Widget build(BuildContext context) {
@@ -76,6 +82,13 @@ class MediaShell extends StatelessWidget {
       ),
     );
   }
+}
+
+double detailMediaAspectRatio(double? sourceRatio) {
+  if (sourceRatio == null || !sourceRatio.isFinite || sourceRatio <= 0) {
+    return 16 / 11;
+  }
+  return sourceRatio.clamp(9 / 16, 21 / 9).toDouble();
 }
 
 class _MediaPlaceholder extends StatelessWidget {
