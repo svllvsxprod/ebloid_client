@@ -12,7 +12,7 @@ class PostCard extends ConsumerWidget {
   const PostCard({super.key, required this.post, required this.onVote});
 
   final PostSummary post;
-  final ValueChanged<Reaction> onVote;
+  final ValueChanged<Reaction>? onVote;
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {

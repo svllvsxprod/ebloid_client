@@ -9,11 +9,13 @@ class VoteControl extends StatelessWidget {
     required this.score,
     required this.reaction,
     required this.onVote,
+    this.semanticLabel = 'Рейтинг публикации',
   });
 
   final int score;
   final Reaction reaction;
   final ValueChanged<Reaction>? onVote;
+  final String semanticLabel;
 
   @override
   Widget build(BuildContext context) {
@@ -21,7 +23,7 @@ class VoteControl extends StatelessWidget {
     final text = Theme.of(context).textTheme;
     return Semantics(
       container: true,
-      label: 'Рейтинг публикации: $score',
+      label: '$semanticLabel: $score',
       child: Row(
         mainAxisSize: MainAxisSize.min,
         children: [

@@ -432,16 +432,18 @@ class _FeedBody extends ConsumerWidget {
             return PostCard(
               key: ValueKey(post.id),
               post: post,
-              onVote: (reaction) async {
-                await controller.react(post.id, reaction);
-                if (!context.mounted) return;
-                final failure = ref.read(feedControllerProvider).failure;
-                if (failure != null) {
-                  ScaffoldMessenger.of(
-                    context,
-                  ).showSnackBar(SnackBar(content: Text(failure.message)));
-                }
-              },
+              onVote: state.hydratingReactionPostIds.contains(post.id)
+                  ? null
+                  : (reaction) async {
+                      await controller.react(post.id, reaction);
+                      if (!context.mounted) return;
+                      final failure = ref.read(feedControllerProvider).failure;
+                      if (failure != null) {
+                        ScaffoldMessenger.of(context).showSnackBar(
+                          SnackBar(content: Text(failure.message)),
+                        );
+                      }
+                    },
             );
           }
           if (state.phase == LoadPhase.paginating) {

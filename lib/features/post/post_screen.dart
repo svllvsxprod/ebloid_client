@@ -496,6 +496,7 @@ class _PostContentState extends ConsumerState<_PostContent> {
                 focusedCommentKey: _focusedCommentKey,
                 focusedCommentNode: _focusedCommentNode,
                 onReply: widget.onReply,
+                onVote: _reactToComment,
               ),
             ),
       ],
@@ -504,6 +505,19 @@ class _PostContentState extends ConsumerState<_PostContent> {
 
   Future<void> _react(Reaction reaction) async {
     await ref.read(postControllerProvider.notifier).react(reaction);
+    if (!mounted) return;
+    final failure = ref.read(postControllerProvider).failure;
+    if (failure != null) {
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text(failure.message)));
+    }
+  }
+
+  Future<void> _reactToComment(Comment comment, Reaction reaction) async {
+    await ref
+        .read(postControllerProvider.notifier)
+        .reactToComment(comment.id, reaction);
     if (!mounted) return;
     final failure = ref.read(postControllerProvider).failure;
     if (failure != null) {
