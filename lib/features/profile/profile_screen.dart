@@ -7,6 +7,7 @@ import '../../app/theme/app_theme.dart';
 import '../../core/domain/content_state.dart';
 import '../../core/domain/profile.dart';
 import '../../core/widgets/widgets.dart';
+import '../auth/auth_controller.dart';
 import '../feed/post_card.dart';
 import 'profile_controller.dart';
 
@@ -21,6 +22,7 @@ class ProfileScreen extends ConsumerStatefulWidget {
 
 class _ProfileScreenState extends ConsumerState<ProfileScreen> {
   late final ScrollController _scrollController;
+  String? _requestedLogin;
 
   @override
   void initState() {
@@ -32,7 +34,10 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
   @override
   void didUpdateWidget(ProfileScreen oldWidget) {
     super.didUpdateWidget(oldWidget);
-    if (widget.login != oldWidget.login) _loadPublicProfile();
+    if (widget.login != oldWidget.login) {
+      _requestedLogin = null;
+      _loadPublicProfile();
+    }
   }
 
   @override
@@ -44,8 +49,12 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
   }
 
   void _loadPublicProfile() {
-    final login = widget.login;
-    if (login == null) return;
+    _loadProfile(widget.login);
+  }
+
+  void _loadProfile(String? login) {
+    if (login == null || login == _requestedLogin) return;
+    _requestedLogin = login;
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (mounted) ref.read(profileControllerProvider.notifier).load(login);
     });
@@ -60,7 +69,10 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
 
   @override
   Widget build(BuildContext context) {
-    final login = widget.login;
+    final currentUser = ref.watch(currentUserProvider);
+    final sessionUser = currentUser.value;
+    final login = widget.login ?? sessionUser?.login;
+    _loadProfile(login);
     return Scaffold(
       appBar: AppTopBar(
         title: login == null ? 'Профиль' : '@$login',
@@ -78,17 +90,26 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
                 icon: const Icon(Icons.arrow_back_rounded),
               ),
       ),
-      body: login == null
+      body: widget.login == null && currentUser.isLoading
+          ? const Center(
+              child: CircularProgressIndicator(
+                semanticsLabel: 'Загрузка профиля',
+              ),
+            )
+          : login == null
           ? StateView.unauthorized(
               title: 'Войдите через Twitch',
-              body:
-                  'Для профиля владельца нужен mobile session exchange от '
-                  'backend eblo.id.',
-              actionLabel: 'Открыть требования входа',
-              onAction: () => context.pushNamed('auth-twitch'),
+              body: currentUser.hasError
+                  ? 'Не удалось получить профиль активной сессии.'
+                  : 'После входа здесь появятся профиль и публикации.',
+              actionLabel: currentUser.hasError ? 'Повторить' : 'Войти',
+              onAction: currentUser.hasError
+                  ? () => ref.invalidate(currentUserProvider)
+                  : () => context.pushNamed('auth-twitch'),
             )
           : _PublicProfileBody(
               login: login,
+              sessionUser: widget.login == null ? sessionUser : null,
               state: ref.watch(profileControllerProvider),
               scrollController: _scrollController,
             ),
@@ -123,67 +144,91 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
 class _PublicProfileBody extends ConsumerWidget {
   const _PublicProfileBody({
     required this.login,
+    required this.sessionUser,
     required this.state,
     required this.scrollController,
   });
 
   final String login;
+  final SessionUser? sessionUser;
   final ProfileControllerState state;
   final ScrollController scrollController;
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final controller = ref.read(profileControllerProvider.notifier);
+    Widget withSessionHeader(Widget child) {
+      final user = sessionUser;
+      if (user == null) return child;
+      return Column(
+        children: [
+          _SessionProfileHeader(user: user),
+          Expanded(child: child),
+        ],
+      );
+    }
+
     if (state.items.isEmpty) {
       if (state.phase == LoadPhase.initialLoading ||
           state.phase == LoadPhase.refreshing) {
-        return const Center(
-          child: CircularProgressIndicator(
-            semanticsLabel: 'Публикации профиля загружаются',
+        return withSessionHeader(
+          const Center(
+            child: CircularProgressIndicator(
+              semanticsLabel: 'Публикации профиля загружаются',
+            ),
           ),
         );
       }
       if (state.phase == LoadPhase.empty) {
-        return StateView.empty(
-          title: 'Публикаций нет',
-          body:
-              'Публичный API не отличает пустой профиль от отсутствующего. '
-              'Metadata появятся после PROFILE-01.',
-          actionLabel: 'Обновить',
-          onAction: () => controller.load(login),
+        return withSessionHeader(
+          StateView.empty(
+            title: 'Публикаций нет',
+            body:
+                'Публичный API не отличает пустой профиль от отсутствующего. '
+                'Metadata появятся после PROFILE-01.',
+            actionLabel: 'Обновить',
+            onAction: () => controller.load(login),
+          ),
         );
       }
       if (state.phase == LoadPhase.offlineEmpty) {
-        return StateView(
-          variant: StateViewVariant.offlineEmpty,
-          title: 'Нет подключения',
-          body: 'Сохранённых публикаций этого профиля пока нет.',
-          actionLabel: 'Повторить',
-          onAction: () => controller.load(login),
-          icon: Icons.cloud_off_outlined,
+        return withSessionHeader(
+          StateView(
+            variant: StateViewVariant.offlineEmpty,
+            title: 'Нет подключения',
+            body: 'Сохранённых публикаций этого профиля пока нет.',
+            actionLabel: 'Повторить',
+            onAction: () => controller.load(login),
+            icon: Icons.cloud_off_outlined,
+          ),
         );
       }
       if (state.phase == LoadPhase.fatalError) {
-        return StateView(
-          variant: StateViewVariant.fatalError,
-          title: isValidProfileLogin(login)
-              ? 'Профиль @$login пока недоступен'
-              : 'Некорректный логин профиля',
-          body: state.failure?.message ?? 'Публичный профиль недоступен.',
-          actionLabel: 'Вернуться в ленту',
-          onAction: () => context.goNamed('feed'),
-          icon: Icons.person_search_outlined,
+        return withSessionHeader(
+          StateView(
+            variant: StateViewVariant.fatalError,
+            title: isValidProfileLogin(login)
+                ? 'Профиль @$login пока недоступен'
+                : 'Некорректный логин профиля',
+            body: state.failure?.message ?? 'Публичный профиль недоступен.',
+            actionLabel: 'Вернуться в ленту',
+            onAction: () => context.goNamed('feed'),
+            icon: Icons.person_search_outlined,
+          ),
         );
       }
-      return StateView.error(
-        title: 'Не удалось загрузить профиль',
-        body: state.failure?.message ?? 'Повторите попытку.',
-        actionLabel: 'Повторить',
-        onAction: () => controller.load(login),
+      return withSessionHeader(
+        StateView.error(
+          title: 'Не удалось загрузить профиль',
+          body: state.failure?.message ?? 'Повторите попытку.',
+          actionLabel: 'Повторить',
+          onAction: () => controller.load(login),
+        ),
       );
     }
 
     final owner = state.inferredOwner;
+    final avatarUrl = owner?.avatarUrl ?? sessionUser?.avatarUrl;
     return RefreshIndicator(
       onRefresh: () => controller.load(login),
       child: CustomScrollView(
@@ -204,8 +249,8 @@ class _PublicProfileBody extends ConsumerWidget {
                   CircleAvatar(
                     radius: 28,
                     backgroundColor: context.appColors.divider,
-                    backgroundImage: appImageProvider(owner?.avatarUrl),
-                    child: owner?.avatarUrl == null
+                    backgroundImage: appImageProvider(avatarUrl),
+                    child: avatarUrl == null
                         ? const Icon(Icons.person_outline_rounded)
                         : null,
                   ),
@@ -245,6 +290,39 @@ class _PublicProfileBody extends ConsumerWidget {
             ),
           ),
           const SliverToBoxAdapter(child: SizedBox(height: AppSpacing.xxl)),
+        ],
+      ),
+    );
+  }
+}
+
+class _SessionProfileHeader extends StatelessWidget {
+  const _SessionProfileHeader({required this.user});
+
+  final SessionUser user;
+
+  @override
+  Widget build(BuildContext context) {
+    return Padding(
+      padding: const EdgeInsets.all(AppSpacing.md),
+      child: Row(
+        children: [
+          CircleAvatar(
+            radius: 28,
+            backgroundColor: context.appColors.divider,
+            backgroundImage: appImageProvider(user.avatarUrl),
+          ),
+          const SizedBox(width: AppSpacing.md),
+          Expanded(
+            child: Text(
+              '@${user.login}',
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+              style: Theme.of(
+                context,
+              ).textTheme.titleLarge?.copyWith(fontWeight: FontWeight.w800),
+            ),
+          ),
         ],
       ),
     );

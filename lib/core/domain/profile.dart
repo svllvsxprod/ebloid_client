@@ -5,6 +5,13 @@ final _profileLoginPattern = RegExp(r'^[A-Za-z0-9_]{1,25}$');
 
 bool isValidProfileLogin(String login) => _profileLoginPattern.hasMatch(login);
 
+final class SessionUser {
+  const SessionUser({required this.login, required this.avatarUrl});
+
+  final String login;
+  final Uri avatarUrl;
+}
+
 final class ProfilePostsPage {
   const ProfilePostsPage({
     required this.login,

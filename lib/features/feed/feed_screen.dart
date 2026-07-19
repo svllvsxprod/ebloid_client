@@ -7,6 +7,7 @@ import '../../app/theme/app_theme.dart';
 import '../../core/domain/content_state.dart';
 import '../../core/domain/feed.dart';
 import '../../core/widgets/widgets.dart';
+import '../auth/auth_controller.dart';
 import 'feed_controller.dart';
 import 'post_card.dart';
 
@@ -52,6 +53,7 @@ class _FeedScreenState extends ConsumerState<FeedScreen> {
     final state = ref.watch(feedControllerProvider);
     final controller = ref.read(feedControllerProvider.notifier);
     final streamFilterEnabled = ref.watch(feedStreamSafeFilterEnabledProvider);
+    final currentUser = ref.watch(currentUserProvider).value;
     return Scaffold(
       appBar: AppTopBar(
         title: 'eblo.id',
@@ -67,11 +69,14 @@ class _FeedScreenState extends ConsumerState<FeedScreen> {
             child: InkWell(
               onTap: () => context.goNamed('profile'),
               borderRadius: AppRadius.control,
-              child: const Padding(
-                padding: EdgeInsets.all(AppSpacing.xs),
+              child: Padding(
+                padding: const EdgeInsets.all(AppSpacing.xs),
                 child: CircleAvatar(
                   radius: 17,
-                  child: Icon(Icons.person_outline_rounded),
+                  backgroundImage: appImageProvider(currentUser?.avatarUrl),
+                  child: currentUser == null
+                      ? const Icon(Icons.person_outline_rounded)
+                      : null,
                 ),
               ),
             ),
