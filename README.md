@@ -41,7 +41,6 @@
   <a href="#готово-и-работает">Готово</a> ·
   <a href="#интерфейс">Интерфейс</a> ·
   <a href="#архитектура">Архитектура</a> ·
-  <a href="#запуск">Запуск</a> ·
   <a href="#модель-безопасности">Безопасность</a> ·
   <a href="#текущие-ограничения">Ограничения</a>
 </p>
@@ -53,6 +52,8 @@ Eblo.id — нативный по поведению мобильный клие
 Приложение использует одно Flutter-дерево интерфейса для iOS и Android. Платформенные различия изолированы в адаптерах авторизации, безопасного хранилища, выбора файлов, воспроизведения медиа, системной отправки ссылок и deep links.
 
 Проект находится в активной разработке. Текущий код уже поддерживает основной пользовательский маршрут, но пока не считается готовым к публикации в App Store и Google Play.
+
+Публичный репозиторий содержит демонстрационный снимок интерфейса и часть исходного кода. Entrypoint и remote integration layer намеренно не публикуются, поэтому собрать приложение только из этого репозитория нельзя.
 
 ## Альфа-Сборка
 
@@ -71,7 +72,7 @@ Eblo.id — нативный по поведению мобильный клие
   </tr>
   <tr>
     <td><img src="docs/readme/screenshots/ios-feed.png" alt="Лента Eblo.id на iOS" width="210" /></td>
-    <td><img src="docs/readme/screenshots/ios-detail.png" alt="Публикация Eblo.id на iOS" width="210" /></td>
+    <td><img src="docs/readme/screenshots/ios-publication.png" alt="Публикация Eblo.id на iOS" width="210" /></td>
     <td><img src="docs/readme/screenshots/ios-create.png" alt="Создание публикации Eblo.id на iOS" width="210" /></td>
     <td><img src="docs/readme/screenshots/ios-profile.png" alt="Профиль Eblo.id на iOS" width="210" /></td>
   </tr>
@@ -95,7 +96,7 @@ Eblo.id — нативный по поведению мобильный клие
 - ✅ Общий поиск по публикациям, видео и пользователям.
 - ✅ Системная отправка канонической ссылки на публикацию.
 - ✅ Единый адаптивный интерфейс, название и launcher icons для Android и iOS.
-- ✅ Unit/widget tests, Android debug build и iOS Simulator build.
+- ✅ Опубликованная Android debug alpha APK и проверенная iOS Simulator сборка.
 
 ## Архитектура
 
@@ -128,81 +129,17 @@ iOS / Android
 - Tokens, cookies, тексты комментариев, media paths и signed URLs не должны попадать в logs.
 - Cleartext traffic и отключение TLS validation не используются.
 
-## Требования
+## Публичный Исходный Код
 
-- Flutter stable и совместимый Dart stable.
-- Xcode для сборки iOS.
-- Android Studio или Android SDK для сборки Android.
-- Устройство или simulator/emulator для запуска.
-- Сетевой доступ к `https://eblo.id`.
+Из публичного source snapshot намеренно исключены компоненты, необходимые для сборки и подключения к backend:
 
-Текущая рабочая конфигурация проверена на Flutter `3.44.2` и Dart `3.12.2`.
+- Entrypoint и composition root приложения.
+- API client и transport wiring.
+- Authenticated mutation guard.
+- Remote repositories для auth, content и upload.
+- Session interceptor для authenticated requests.
 
-## Запуск
-
-Получить зависимости и проверить проект:
-
-```bash
-flutter pub get
-dart format lib test
-flutter analyze
-flutter test
-```
-
-Посмотреть доступные устройства и запустить приложение:
-
-```bash
-flutter devices
-flutter run -d <device-id>
-```
-
-Собрать debug APK:
-
-```bash
-flutter build apk --debug
-```
-
-Собрать приложение для iOS Simulator без подписи:
-
-```bash
-flutter build ios --simulator --debug --no-codesign
-```
-
-## Окружения
-
-По умолчанию используется development-конфигурация с origin `https://eblo.id`.
-
-Staging:
-
-```bash
-flutter run -d <device-id> \
-  --dart-define=APP_ENV=staging \
-  --dart-define=API_BASE_URL="$API_BASE_URL"
-```
-
-Production:
-
-```bash
-flutter run -d <device-id> \
-  --dart-define=APP_ENV=production \
-  --dart-define=API_BASE_URL="$API_BASE_URL"
-```
-
-`API_BASE_URL` принимает только HTTPS origin без credentials, path, query и fragment. Secrets через Dart defines не передаются.
-
-## Структура Проекта
-
-```text
-lib/app/                 composition root, router и theme
-lib/core/                API, auth, domain, storage и общие widgets
-lib/features/feed/       лента и фильтры
-lib/features/post/       публикация, реакции и комментарии
-lib/features/create_post/ создание, черновик и upload
-lib/features/profile/    публичный профиль
-lib/features/search/     общий поиск
-lib/features/videos/     публичный раздел видео
-test/                    unit и widget tests
-```
+Готовая тестовая Android-сборка публикуется только через GitHub Releases.
 
 ## Документация
 
@@ -220,13 +157,4 @@ test/                    unit и widget tests
 
 ## Статус Разработки
 
-Перед передачей изменений выполняются:
-
-```bash
-flutter pub get
-dart format lib test
-flutter analyze
-flutter test
-```
-
-Последний проверенный baseline также проходит Android debug build и iOS Simulator build. Известные пользовательские ограничения перечислены выше.
+Актуальная тестовая Android-сборка доступна в alpha release. Известные пользовательские ограничения перечислены выше.
