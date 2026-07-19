@@ -25,7 +25,13 @@ class _FeedScreenState extends ConsumerState<FeedScreen> {
   void initState() {
     super.initState();
     _scrollController = ScrollController()..addListener(_onScroll);
-    WidgetsBinding.instance.addPostFrameCallback((_) {
+    WidgetsBinding.instance.addPostFrameCallback((_) async {
+      try {
+        await ref.read(authControllerProvider.future);
+      } on Object {
+        // Public feed remains available when session verification fails.
+      }
+      if (!mounted) return;
       final state = ref.read(feedControllerProvider);
       if (state.items.isEmpty && state.phase == LoadPhase.initialLoading) {
         ref.read(feedControllerProvider.notifier).load();
@@ -52,6 +58,21 @@ class _FeedScreenState extends ConsumerState<FeedScreen> {
   Widget build(BuildContext context) {
     final state = ref.watch(feedControllerProvider);
     final controller = ref.read(feedControllerProvider.notifier);
+    ref.listen(authControllerProvider, (previous, next) {
+      final previousValue = switch (previous) {
+        AsyncData(:final value) => value,
+        _ => null,
+      };
+      final nextValue = switch (next) {
+        AsyncData(:final value) => value,
+        _ => null,
+      };
+      if (previousValue != null &&
+          nextValue != null &&
+          previousValue != nextValue) {
+        controller.load();
+      }
+    });
     final streamFilterEnabled = ref.watch(feedStreamSafeFilterEnabledProvider);
     final currentUser = ref.watch(currentUserProvider).value;
     return Scaffold(
@@ -371,11 +392,13 @@ class _FeedBody extends ConsumerWidget {
             icon: Icons.cloud_off_outlined,
           ),
         ),
-        LoadPhase.fatalError => const _StateList(
+        LoadPhase.fatalError => _StateList(
           child: StateView(
             variant: StateViewVariant.fatalError,
             title: 'Лента недоступна',
             body: 'Безопасно вернитесь позже или откройте поддержку.',
+            actionLabel: 'Повторить',
+            onAction: controller.load,
             icon: Icons.report_gmailerrorred_outlined,
           ),
         ),

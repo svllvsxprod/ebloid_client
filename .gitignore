@@ -1,8 +1,8 @@
 # OpenCode local state and secrets
-.opencode/.env
-.opencode/memory.jsonl
-.opencode/node_modules/
-.opencode/package-lock.json
+.opencode/
+design/
+docs/research/
+docs/implementation-checklist.md
 
 # Flutter/Dart generated files
 .dart_tool/
@@ -20,7 +20,6 @@ coverage/
 *.log
 cookies.txt
 .playwright-mcp/
-.opencode/playwright-profile/
 eblo-flutter-opencode-handoff.zip
 
 # Platform-generated private files
