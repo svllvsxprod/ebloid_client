@@ -15,7 +15,8 @@ Flutter-клиент eblo.id для iOS и Android с одной кодовой 
 - Create использует системный multi-file picker для изображений, видео и аудио; локальный черновик сохраняет порядок и media handles в secure storage и повторно проверяет их доступность после restart.
 - Cold post detail получает проверенные image/video/audio/album fields из public HTML и затем загружает comments; mixed album сохраняет server DOM order.
 - Deep link `/post/:shortCode/comment/:commentId` раскрывает вложенную ветку, прокручивает к комментарию и визуально/семантически выделяет его.
-- Upload/publish, reactions, comment mutations, owner profile и native Twitch session не имитируются: неподтверждённые действия скрыты или показывают контрактный blocker.
+- Twitch-вход запускается с главной eblo.id внутри видимого allowlisted WebView. После callback сохраняется только подтверждённая cookie-сессия eblo.id; Twitch cookies и OAuth query не переносятся в клиент.
+- Upload/publish, reactions, comment mutations и owner profile не включаются до отдельной проверки authenticated contracts.
 - Business fixtures, local media assets и fake repositories отсутствуют.
 - Игры исключены из mobile scope решением владельца продукта.
 
@@ -38,7 +39,7 @@ Flutter-клиент eblo.id для iOS и Android с одной кодовой 
 - Web session foundation хранит только validated eblo.id cookies и CSRF token в Keychain/Keystore-backed secure storage; direct mutations блокируются при storage failure, public GET продолжают работать.
 - Test-only doubles используются только для проверки технических контрактов хранения и не содержат постов, пользователей или media content.
 
-Текущий клиент не является production-ready. Twitch OAuth, standalone detail deep links, полные profile metadata и production uploads заблокированы соответствующими `TODO(API)`. Сохранённые picker paths могут стать недоступны после очистки platform cache; такой media item явно помечается и может быть удалён или заменён.
+Текущий клиент не является production-ready. WebView OAuth/cookie bridge требует physical Android/iOS smoke; полные profile metadata и production mutations заблокированы соответствующими `TODO(API)`. Сохранённые picker paths могут стать недоступны после очистки platform cache; такой media item явно помечается и может быть удалён или заменён.
 
 ## Environments
 
