@@ -4,6 +4,15 @@ design/
 docs/research/
 docs/implementation-checklist.md
 
+# Private integration components are intentionally excluded.
+/lib/main.dart
+/lib/core/api/api_client.dart
+/lib/core/api/authenticated_mutation_guard.dart
+/lib/core/api/remote_auth_repository.dart
+/lib/core/api/remote_content_repository.dart
+/lib/core/api/remote_upload_repository.dart
+/lib/core/auth/web_session_interceptor.dart
+
 # Flutter/Dart generated files
 .dart_tool/
 .flutter-plugins
