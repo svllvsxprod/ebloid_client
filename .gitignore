@@ -4,6 +4,26 @@ design/
 docs/research/
 docs/implementation-checklist.md
 
+# Public showcase snapshot is intentionally not a buildable Flutter project.
+/.metadata
+/pubspec.yaml
+/pubspec.lock
+/android/
+/ios/
+/test/
+/integration_test/
+/lib/app/app.dart
+/lib/app/app_config.dart
+/lib/app/router.dart
+/lib/app/tab_shell.dart
+/lib/core/auth/
+/lib/core/platform/
+/lib/core/repositories/
+/lib/features/**/*_controller.dart
+/lib/features/auth/auth_screen.dart
+/lib/features/post/comment_thread.dart
+/lib/features/post/post_media.dart
+
 # Private integration components are intentionally excluded.
 /lib/main.dart
 /lib/core/api/api_client.dart
@@ -31,9 +51,3 @@ coverage/
 cookies.txt
 .playwright-mcp/
 eblo-flutter-opencode-handoff.zip
-
-# Platform-generated private files
-android/key.properties
-android/local.properties
-ios/Flutter/Generated.xcconfig
-ios/Flutter/flutter_export_environment.sh

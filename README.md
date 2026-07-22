@@ -53,7 +53,7 @@ Eblo.id — нативный по поведению мобильный клие
 
 Проект находится в активной разработке. Текущий код уже поддерживает основной пользовательский маршрут, но пока не считается готовым к публикации в App Store и Google Play.
 
-Публичный репозиторий содержит демонстрационный снимок интерфейса и часть исходного кода. Entrypoint и remote integration layer намеренно не публикуются, поэтому собрать приложение только из этого репозитория нельзя.
+Публичный репозиторий содержит демонстрационный снимок интерфейса и ограниченную часть исходного кода. Build manifests, platform projects, composition root, controllers и integration layer намеренно не публикуются, поэтому этот snapshot нельзя использовать для сборки приложения.
 
 ## Beta-Сборка
 
@@ -165,19 +165,24 @@ iOS / Android
 
 ## Публичный Исходный Код
 
-Из публичного source snapshot намеренно исключены компоненты, необходимые для сборки и подключения к backend:
+Из публичного source snapshot намеренно исключены компоненты, необходимые для сборки и подключения к backend. Локальный рабочий проект и готовые APK от этого не зависят:
 
-- Entrypoint и composition root приложения.
+- Flutter dependency manifests и Android/iOS platform projects.
+- Entrypoint, composition root, router и navigation shell приложения.
 - API client и transport wiring.
 - Authenticated mutation guard.
 - Remote repositories для auth, content, notifications и upload.
 - Session interceptor для authenticated requests.
+- Controllers, protected-intent flow, cache/storage implementations и platform adapters.
+- Media/comment internals, unit/widget/integration tests и build harness.
+
+В репозитории остаются только публичная документация, screenshots, design-facing domain types, общие UI widgets и часть screen composition. Это showcase snapshot, а не распространяемый Flutter SDK или reproducible source release.
 
 Готовая тестовая Android-сборка публикуется только через GitHub Releases.
 
 ## Документация
 
-- README содержит публичное описание, команды сборки, архитектуру и известные ограничения.
+- README содержит публичное описание, архитектуру и известные ограничения.
 - Внутренняя продуктовая, исследовательская и development-документация не публикуется в репозитории.
 
 ## Текущие Ограничения
