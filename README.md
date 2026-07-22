@@ -55,11 +55,11 @@ Eblo.id — нативный по поведению мобильный клие
 
 Публичный репозиторий содержит демонстрационный снимок интерфейса и часть исходного кода. Entrypoint и remote integration layer намеренно не публикуются, поэтому собрать приложение только из этого репозитория нельзя.
 
-## Альфа-Сборка
+## Beta-Сборка
 
-Текущая тестовая версия доступна в [GitHub Releases](https://github.com/svllvsxprod/ebloid_client/releases/tag/v1.0.0-alpha.1).
+Текущая тестовая версия доступна в [GitHub Releases](https://github.com/svllvsxprod/ebloid_client/releases/tag/v1.0.0-beta.1).
 
-Это debug APK для тестирования альфа-версии. Сборка не предназначена для публикации в Google Play или использования как production release.
+Это debug APK для тестирования Beta 1. Сборка не предназначена для публикации в Google Play или использования как production release.
 
 ## Интерфейс
 
@@ -75,6 +75,34 @@ Eblo.id — нативный по поведению мобильный клие
     <td><img src="docs/readme/screenshots/ios-publication.png" alt="Публикация Eblo.id на iOS" width="210" /></td>
     <td><img src="docs/readme/screenshots/ios-create.png" alt="Создание публикации Eblo.id на iOS" width="210" /></td>
     <td><img src="docs/readme/screenshots/ios-profile.png" alt="Профиль Eblo.id на iOS" width="210" /></td>
+  </tr>
+</table>
+
+<table>
+  <tr>
+    <th>Видео</th>
+    <th>Поиск</th>
+    <th>Уведомления</th>
+    <th>Настройки</th>
+  </tr>
+  <tr>
+    <td><img src="docs/readme/screenshots/ios-videos.png" alt="Раздел видео Eblo.id на iOS" width="210" /></td>
+    <td><img src="docs/readme/screenshots/ios-search.png" alt="Поиск Eblo.id на iOS" width="210" /></td>
+    <td><img src="docs/readme/screenshots/ios-notifications.png" alt="Уведомления Eblo.id на iOS" width="210" /></td>
+    <td><img src="docs/readme/screenshots/ios-settings.png" alt="Настройки Eblo.id на iOS" width="210" /></td>
+  </tr>
+</table>
+
+<table>
+  <tr>
+    <th>Поддержка</th>
+    <th>Правила</th>
+    <th>Конфиденциальность</th>
+  </tr>
+  <tr>
+    <td><img src="docs/readme/screenshots/ios-support.png" alt="Поддержка Eblo.id на iOS" width="260" /></td>
+    <td><img src="docs/readme/screenshots/ios-rules.png" alt="Правила Eblo.id на iOS" width="260" /></td>
+    <td><img src="docs/readme/screenshots/ios-privacy.png" alt="Конфиденциальность Eblo.id на iOS" width="260" /></td>
   </tr>
 </table>
 
@@ -94,9 +122,15 @@ Eblo.id — нативный по поведению мобильный клие
 - ✅ Публикации «В ленте» и «По ссылке».
 - ✅ Защищённый локальный черновик, прогресс загрузки, отмена и повтор.
 - ✅ Общий поиск по публикациям, видео и пользователям.
+- ✅ Нативный центр уведомлений: полный доступный список, unread badge, категории, прочтение одного/всех и очистка.
+- ✅ Переходы из уведомлений в публикацию, конкретный комментарий, профиль и проверенную внешнюю video-ссылку.
+- ✅ Настройки уведомлений о лайках/комментариях и локальный звук с rollback при ошибке.
+- ✅ Нативная поддержка: Telegram-канал, чат с администраторами, email и безопасный fallback с копированием адреса.
+- ✅ Справочные Rules/Privacy экраны с зафиксированной редакцией, verified public facts и ссылкой на eblo.id.
+- ✅ Копирование runtime version/build и явный email flow запроса удаления данных.
 - ✅ Системная отправка канонической ссылки на публикацию.
 - ✅ Единый адаптивный интерфейс, название и launcher icons для Android и iOS.
-- ✅ Опубликованная Android debug alpha APK и проверенная iOS Simulator сборка.
+- ✅ Android debug Beta APK и проверенная iOS Simulator сборка из одного Flutter-дерева.
 
 ## Архитектура
 
@@ -136,7 +170,7 @@ iOS / Android
 - Entrypoint и composition root приложения.
 - API client и transport wiring.
 - Authenticated mutation guard.
-- Remote repositories для auth, content и upload.
+- Remote repositories для auth, content, notifications и upload.
 - Session interceptor для authenticated requests.
 
 Готовая тестовая Android-сборка публикуется только через GitHub Releases.
@@ -148,13 +182,16 @@ iOS / Android
 
 ## Текущие Ограничения
 
-- Turnstile/CAPTCHA challenge пока возвращается как recoverable blocker без встроенного challenge UI.
+- Turnstile/CAPTCHA challenge пока возвращается как controlled terminal blocker без встроенного challenge UI.
 - Background/resumable upload и server-side cleanup требуют дополнительного backend/platform решения.
-- Offline cache для feed, post, comments и profile ещё не завершён.
-- Report, block/mute, account deletion и другие обязательные UGC store flows ещё не реализованы.
-- Deep links и OAuth-return требуют финального physical smoke на поддерживаемых iOS/Android версиях.
-- Notifications/push и полный video suggestion flow относятся к следующим релизам.
+- Public-safe cache первой страницы feed, доступных post/comments и публичных profile uploads готов.
+- Read cache хранится в disposable, не попадающем в backup temporary storage до 24 часов. В него не записываются authenticated responses, реакции/права пользователя, avatar/media URL, restricted/non-available posts или partial comments.
+- В Beta 1 авторизованный read-path не обновляет public cache: offline fallback использует только ранее сохранённый guest/public-scope результат, пока visibility contract не позволит безопасную нормализацию.
+- Жалобы, block/mute и account deletion отложены до появления согласованных backend contracts; локальные имитации в Beta 1 не используются.
+- OAuth login подтверждён на Android/iOS simulator и физическом Android-устройстве; physical iOS и финальный deep-link smoke ещё требуются.
+- In-app notification center, unread и настройки работают; системная push-доставка требует отдельного device-token transport.
+- Неподдерживаемый системным декодером media-файл можно открыть через проверенную каноническую ссылку в браузере; финальный playback smoke требуется на физических iOS/Android устройствах.
 
 ## Статус Разработки
 
-Актуальная тестовая Android-сборка доступна в alpha release. Известные пользовательские ограничения перечислены выше.
+Актуальная тестовая Android-сборка доступна в Beta 1 release. Известные пользовательские ограничения перечислены выше.

@@ -1,6 +1,5 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:go_router/go_router.dart';
 
 import '../../app/app_scroll_behavior.dart';
 import '../../app/theme/app_theme.dart';
@@ -52,30 +51,6 @@ class _VideoScreenState extends ConsumerState<VideoScreen> {
     return Scaffold(
       appBar: const AppTopBar(title: 'Видео'),
       body: _VideoBody(state: state, controller: _scrollController),
-      bottomNavigationBar: AppBottomNav(
-        selectedIndex: 1,
-        onDestinationSelected: (index) {
-          if (index == 0) context.goNamed('feed');
-          if (index == 2) context.goNamed('profile');
-        },
-        items: const [
-          AppBottomNavItem(
-            icon: Icons.dynamic_feed_outlined,
-            selectedIcon: Icons.dynamic_feed_rounded,
-            label: 'Лента',
-          ),
-          AppBottomNavItem(
-            icon: Icons.smart_display_outlined,
-            selectedIcon: Icons.smart_display_rounded,
-            label: 'Видео',
-          ),
-          AppBottomNavItem(
-            icon: Icons.person_outline_rounded,
-            selectedIcon: Icons.person_rounded,
-            label: 'Профиль',
-          ),
-        ],
-      ),
     );
   }
 }

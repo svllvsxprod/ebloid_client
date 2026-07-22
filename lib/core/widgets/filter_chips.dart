@@ -50,11 +50,13 @@ class HorizontalFilterChips<T> extends StatelessWidget {
               child: FilterChip(
                 selected: selected,
                 showCheckmark: false,
-                selectedColor: colors.fg,
-                backgroundColor: colors.surface,
-                side: BorderSide(color: selected ? colors.fg : colors.divider),
+                selectedColor: colors.soft,
+                backgroundColor: colors.surfaceElevated,
+                side: BorderSide(
+                  color: selected ? colors.accent : colors.divider,
+                ),
                 labelStyle: Theme.of(context).textTheme.labelLarge?.copyWith(
-                  color: selected ? colors.surface : colors.muted,
+                  color: selected ? colors.accent : colors.muted,
                   fontWeight: FontWeight.w600,
                 ),
                 avatar: item.icon == null
@@ -62,7 +64,7 @@ class HorizontalFilterChips<T> extends StatelessWidget {
                     : Icon(
                         item.icon,
                         size: 18,
-                        color: selected ? colors.surface : colors.muted,
+                        color: selected ? colors.accent : colors.muted,
                       ),
                 label: Text(item.label),
                 onSelected: (_) => onSelected(item.value),

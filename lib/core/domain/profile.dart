@@ -18,12 +18,21 @@ final class ProfilePostsPage {
     required this.items,
     required this.total,
     this.nextCursor,
-  });
+    this.source = PageSource.remote,
+    this.scope = PageScope.public,
+    this.fetchedAt,
+  }) : assert(
+         source != PageSource.cache || fetchedAt != null,
+         'Cached profile page requires fetchedAt.',
+       );
 
   final String login;
   final List<PostSummary> items;
   final int total;
   final PageCursor? nextCursor;
+  final PageSource source;
+  final PageScope scope;
+  final DateTime? fetchedAt;
 
   UserRef? get inferredOwner => items.firstOrNull?.author;
 }

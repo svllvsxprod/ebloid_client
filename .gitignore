@@ -10,6 +10,7 @@ docs/implementation-checklist.md
 /lib/core/api/authenticated_mutation_guard.dart
 /lib/core/api/remote_auth_repository.dart
 /lib/core/api/remote_content_repository.dart
+/lib/core/api/remote_notification_repository.dart
 /lib/core/api/remote_upload_repository.dart
 /lib/core/auth/web_session_interceptor.dart
 

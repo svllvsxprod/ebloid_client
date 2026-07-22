@@ -4,6 +4,7 @@ import '../../app/theme/app_theme.dart';
 
 enum StateViewVariant {
   empty,
+  unavailable,
   offlineEmpty,
   recoverableError,
   fatalError,
@@ -31,6 +32,15 @@ class StateView extends StatelessWidget {
     this.onAction,
     this.icon = Icons.inbox_outlined,
   }) : variant = StateViewVariant.empty;
+
+  const StateView.unavailable({
+    super.key,
+    required this.title,
+    required this.body,
+    this.actionLabel,
+    this.onAction,
+    this.icon = Icons.hourglass_empty_rounded,
+  }) : variant = StateViewVariant.unavailable;
 
   const StateView.error({
     super.key,
@@ -72,12 +82,23 @@ class StateView extends StatelessWidget {
     final text = Theme.of(context).textTheme;
     final label = switch (variant) {
       StateViewVariant.empty => 'Пустое состояние',
+      StateViewVariant.unavailable => 'Раздел пока недоступен',
       StateViewVariant.offlineEmpty => 'Нет сети и сохранённых данных',
       StateViewVariant.recoverableError => 'Ошибка, можно повторить',
       StateViewVariant.fatalError => 'Критическая ошибка',
       StateViewVariant.unauthorized => 'Требуется вход',
       StateViewVariant.restricted => 'Ограниченный контент',
       StateViewVariant.success => 'Готово',
+    };
+    final tone = switch (variant) {
+      StateViewVariant.empty => colors.muted,
+      StateViewVariant.unavailable => colors.info,
+      StateViewVariant.offlineEmpty => colors.warning,
+      StateViewVariant.recoverableError ||
+      StateViewVariant.fatalError => colors.danger,
+      StateViewVariant.unauthorized => colors.info,
+      StateViewVariant.restricted => colors.warning,
+      StateViewVariant.success => colors.success,
     };
 
     return Semantics(
@@ -91,7 +112,18 @@ class StateView extends StatelessWidget {
             child: Column(
               mainAxisSize: MainAxisSize.min,
               children: [
-                if (icon != null) Icon(icon, size: 40, color: colors.muted),
+                if (icon != null)
+                  Container(
+                    width: 68,
+                    height: 68,
+                    alignment: Alignment.center,
+                    decoration: BoxDecoration(
+                      color: tone.withValues(alpha: .1),
+                      border: Border.all(color: tone.withValues(alpha: .38)),
+                      borderRadius: BorderRadius.circular(AppRadius.lg),
+                    ),
+                    child: Icon(icon, size: 32, color: tone),
+                  ),
                 if (icon != null) const SizedBox(height: AppSpacing.md),
                 Text(
                   title,

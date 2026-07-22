@@ -23,10 +23,11 @@ class AppTopBar extends StatelessWidget implements PreferredSizeWidget {
   Widget build(BuildContext context) {
     final colors = context.appColors;
     final text = Theme.of(context).textTheme;
+    final isBrand = title == 'eblo.id';
     return SafeArea(
       bottom: false,
       child: Material(
-        color: colors.bg,
+        color: colors.surface,
         child: Container(
           height: preferredSize.height,
           padding: const EdgeInsets.symmetric(horizontal: 14),
@@ -36,6 +37,7 @@ class AppTopBar extends StatelessWidget implements PreferredSizeWidget {
           child: Row(
             children: [
               ?leading,
+              if (isBrand) const _BrandMark(),
               Expanded(
                 child: Padding(
                   padding: const EdgeInsets.symmetric(
@@ -50,10 +52,10 @@ class AppTopBar extends StatelessWidget implements PreferredSizeWidget {
                         maxLines: 1,
                         overflow: TextOverflow.ellipsis,
                         style: text.titleLarge?.copyWith(
-                          fontWeight: title == 'eblo.id'
-                              ? FontWeight.w700
+                          fontWeight: isBrand
+                              ? FontWeight.w800
                               : FontWeight.w600,
-                          letterSpacing: title == 'eblo.id' ? -.7 : -.25,
+                          letterSpacing: isBrand ? -.8 : -.25,
                         ),
                       ),
                       if (subtitle != null)
@@ -71,6 +73,22 @@ class AppTopBar extends StatelessWidget implements PreferredSizeWidget {
             ],
           ),
         ),
+      ),
+    );
+  }
+}
+
+class _BrandMark extends StatelessWidget {
+  const _BrandMark();
+
+  @override
+  Widget build(BuildContext context) {
+    return ExcludeSemantics(
+      child: Image.asset(
+        'assets/branding/phone-logo.png',
+        width: 32,
+        height: 32,
+        filterQuality: FilterQuality.none,
       ),
     );
   }

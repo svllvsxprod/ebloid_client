@@ -31,7 +31,19 @@ class PostCard extends ConsumerWidget {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            _AuthorRow(post: post),
+            Row(
+              children: [
+                Expanded(child: _AuthorRow(post: post)),
+                if (post.permissions.canShare)
+                  Builder(
+                    builder: (shareContext) => IconButton(
+                      tooltip: 'Поделиться',
+                      onPressed: () => _share(shareContext, ref),
+                      icon: const Icon(Icons.ios_share_rounded),
+                    ),
+                  ),
+              ],
+            ),
             const SizedBox(height: AppSpacing.sm),
             InkWell(
               borderRadius: AppRadius.media,
@@ -49,7 +61,7 @@ class PostCard extends ConsumerWidget {
                     maxLines: 2,
                     overflow: TextOverflow.ellipsis,
                     style: text.titleMedium?.copyWith(
-                      fontWeight: FontWeight.w800,
+                      fontWeight: FontWeight.w700,
                     ),
                   ),
                   if (post.description.isNotEmpty) ...[
@@ -64,14 +76,20 @@ class PostCard extends ConsumerWidget {
                 ],
               ),
             ),
-            Row(
+            Wrap(
+              alignment: WrapAlignment.spaceBetween,
+              crossAxisAlignment: WrapCrossAlignment.center,
+              runSpacing: AppSpacing.xxs,
               children: [
                 VoteControl(
                   score: post.counters.score,
                   reaction: post.userReaction,
-                  onVote: post.permissions.canReact ? onVote : null,
+                  onVote:
+                      post.permissions.canReact ||
+                          post.permissions.requiresAuthToReact
+                      ? onVote
+                      : null,
                 ),
-                const Spacer(),
                 CounterActionButton(
                   icon: Icons.chat_bubble_outline_rounded,
                   label: 'Комментарии',
@@ -83,12 +101,6 @@ class PostCard extends ConsumerWidget {
                   label: 'Просмотры',
                   count: post.counters.views,
                 ),
-                if (post.permissions.canShare)
-                  IconButton(
-                    tooltip: 'Поделиться',
-                    onPressed: () => _share(context, ref),
-                    icon: const Icon(Icons.ios_share_rounded),
-                  ),
               ],
             ),
             Divider(height: 1, color: colors.divider),
@@ -256,7 +268,7 @@ class _FeedMedia extends StatelessWidget {
                 padding: const EdgeInsets.all(AppSpacing.sm),
                 child: DecoratedBox(
                   decoration: BoxDecoration(
-                    color: context.appColors.fg.withValues(alpha: .76),
+                    color: context.appColors.overlayScrim,
                     borderRadius: AppRadius.control,
                   ),
                   child: Padding(
@@ -270,13 +282,13 @@ class _FeedMedia extends StatelessWidget {
                         Icon(
                           _kindIcon(post.media.kind),
                           size: 16,
-                          color: context.appColors.surface,
+                          color: context.appColors.fg,
                         ),
                         const SizedBox(width: AppSpacing.xxs),
                         Text(
                           _kindLabel(post.media),
                           style: Theme.of(context).textTheme.labelMedium
-                              ?.copyWith(color: context.appColors.surface),
+                              ?.copyWith(color: context.appColors.fg),
                         ),
                       ],
                     ),

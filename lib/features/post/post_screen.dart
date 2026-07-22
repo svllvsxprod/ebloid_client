@@ -6,47 +6,62 @@ import '../../app/theme/app_theme.dart';
 import '../../core/domain/content_state.dart';
 import '../../core/domain/post.dart';
 import '../../core/domain/profile.dart';
+import '../../core/domain/protected_intent.dart';
 import '../../core/platform/platform_adapters.dart';
 import '../../core/widgets/widgets.dart';
+import '../auth/protected_intent_controller.dart';
 import 'comment_thread.dart';
 import 'post_controller.dart';
 import 'post_media.dart';
 
 class PostScreen extends ConsumerStatefulWidget {
-  const PostScreen({super.key, required this.shortCode, this.focusedCommentId});
+  const PostScreen({
+    super.key,
+    required this.shortCode,
+    this.focusedCommentId,
+    this.restoredProtectedIntent,
+  });
 
   final String shortCode;
   final String? focusedCommentId;
+  final PendingProtectedIntent? restoredProtectedIntent;
 
   @override
   ConsumerState<PostScreen> createState() => _PostScreenState();
 }
 
 class _PostScreenState extends ConsumerState<PostScreen> {
-  Comment? _replyTarget;
+  String? _restoredIntentId;
 
   @override
   void initState() {
     super.initState();
-    WidgetsBinding.instance.addPostFrameCallback((_) {
-      ref.read(postControllerProvider.notifier).load(widget.shortCode);
-    });
+    WidgetsBinding.instance.addPostFrameCallback((_) => _loadAndRestore());
   }
 
   @override
   void didUpdateWidget(covariant PostScreen oldWidget) {
     super.didUpdateWidget(oldWidget);
     if (oldWidget.shortCode != widget.shortCode) {
-      ref.read(postControllerProvider.notifier).load(widget.shortCode);
+      _loadAndRestore();
+    } else if (oldWidget.restoredProtectedIntent?.id !=
+        widget.restoredProtectedIntent?.id) {
+      _restoreProtectedIntent();
     }
   }
 
   @override
   Widget build(BuildContext context) {
     final state = ref.watch(postControllerProvider);
-    final canComment =
+    final permissions = state.detail?.summary.permissions;
+    final canCompose =
         state.phase == LoadPhase.success &&
-        state.detail?.summary.permissions.canComment == true;
+        (permissions?.canComment == true ||
+            permissions?.requiresAuthToComment == true);
+    final replyTarget = _findCommentById(
+      state.detail?.comments ?? const [],
+      state.pendingReplyParentId,
+    );
     return Scaffold(
       resizeToAvoidBottomInset: false,
       appBar: AppTopBar(
@@ -63,7 +78,9 @@ class _PostScreenState extends ConsumerState<PostScreen> {
           icon: const Icon(Icons.arrow_back_rounded),
         ),
         actions: [
-          if (state.detail?.summary.permissions.canShare == true)
+          if (state.detail?.summary.availability ==
+                  PostAvailability.available &&
+              state.detail?.summary.permissions.canShare == true)
             IconButton(
               tooltip: 'Поделиться',
               onPressed: () => _share(state.detail!.summary.shortCode),
@@ -75,12 +92,16 @@ class _PostScreenState extends ConsumerState<PostScreen> {
         state: state,
         shortCode: widget.shortCode,
         focusedCommentId: widget.focusedCommentId,
-        onReply: (comment) => setState(() => _replyTarget = comment),
+        onReply: (comment) => ref
+            .read(postControllerProvider.notifier)
+            .setReplyTarget(comment.id),
       ),
-      bottomNavigationBar: canComment
+      bottomNavigationBar: canCompose
           ? _CommentComposer(
-              replyTarget: _replyTarget,
-              onCancelReply: () => setState(() => _replyTarget = null),
+              shortCode: widget.shortCode,
+              draftBody: state.pendingCommentBody,
+              replyTarget: replyTarget,
+              requiresAuth: permissions?.requiresAuthToComment == true,
             )
           : null,
     );
@@ -99,6 +120,35 @@ class _PostScreenState extends ConsumerState<PostScreen> {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(content: Text('Не удалось открыть меню «Поделиться».')),
       );
+    }
+  }
+
+  Future<void> _loadAndRestore() async {
+    await ref.read(postControllerProvider.notifier).load(widget.shortCode);
+    if (!mounted) return;
+    await _restoreProtectedIntent();
+  }
+
+  Future<void> _restoreProtectedIntent() async {
+    final intent = widget.restoredProtectedIntent;
+    if (intent == null || intent.id == _restoredIntentId) return;
+    _restoredIntentId = intent.id;
+    final restored = await ref
+        .read(postControllerProvider.notifier)
+        .restoreProtectedIntent(intent);
+    if (!mounted) return;
+    final message = restored
+        ? 'Черновик восстановлен. Проверьте текст и нажмите отправку.'
+        : switch (intent.kind) {
+            ProtectedIntentKind.postReaction ||
+            ProtectedIntentKind.commentReaction =>
+              'Вход выполнен. Нажмите оценку ещё раз для подтверждения.',
+            _ => null,
+          };
+    if (message != null) {
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text(message)));
     }
   }
 }
@@ -142,7 +192,7 @@ class _PostBody extends ConsumerWidget {
     if (state.phase == LoadPhase.unauthorized) {
       return const StateView.unauthorized(
         title: 'Требуется вход',
-        body: 'Twitch OAuth будет подключён после согласования AUTH-01.',
+        body: 'Войдите через Twitch и вернитесь к публикации.',
       );
     }
     if (state.phase == LoadPhase.fatalError) {
@@ -172,6 +222,28 @@ class _PostBody extends ConsumerWidget {
         onAction: () => controller.load(shortCode),
       );
     }
+    final unavailableView = switch (detail.summary.availability) {
+      PostAvailability.deleted => const StateView(
+        variant: StateViewVariant.fatalError,
+        title: 'Публикация удалена',
+        body: 'Этот материал больше недоступен.',
+        icon: Icons.delete_outline_rounded,
+      ),
+      PostAvailability.unavailable => const StateView(
+        variant: StateViewVariant.fatalError,
+        title: 'Публикация недоступна',
+        body: 'Доступ к этому материалу отсутствует.',
+        icon: Icons.block_rounded,
+      ),
+      PostAvailability.moderating => const StateView(
+        variant: StateViewVariant.restricted,
+        title: 'Публикация на проверке',
+        body: 'Материал временно недоступен во время модерации.',
+        icon: Icons.hourglass_top_rounded,
+      ),
+      PostAvailability.available || PostAvailability.restricted => null,
+    };
+    if (unavailableView != null) return unavailableView;
     return Column(
       children: [
         if (state.phase == LoadPhase.refreshing)
@@ -180,7 +252,7 @@ class _PostBody extends ConsumerWidget {
           ),
         if (state.phase == LoadPhase.offlineWithCache)
           OfflineBanner(
-            message: 'Показана сохранённая публикация',
+            message: _offlinePostMessage(state.cachedAt),
             onRetry: () => controller.load(shortCode),
           ),
         if (state.phase == LoadPhase.recoverableError)
@@ -205,6 +277,17 @@ class _PostBody extends ConsumerWidget {
   }
 }
 
+String _offlinePostMessage(DateTime? cachedAt) {
+  if (cachedAt == null) return 'Показана сохранённая публикация';
+  final local = cachedAt.toLocal();
+  final day = local.day.toString().padLeft(2, '0');
+  final month = local.month.toString().padLeft(2, '0');
+  final hour = local.hour.toString().padLeft(2, '0');
+  final minute = local.minute.toString().padLeft(2, '0');
+  return 'Показана сохранённая публикация · данные от '
+      '$day.$month $hour:$minute';
+}
+
 class _PostStatusBanner extends StatelessWidget {
   const _PostStatusBanner({required this.message, required this.onRetry});
 
@@ -218,7 +301,7 @@ class _PostStatusBanner extends StatelessWidget {
       liveRegion: true,
       label: 'Ошибка обновления. $message',
       child: Material(
-        color: context.appColors.surface,
+        color: context.appColors.surfaceElevated,
         child: Padding(
           padding: const EdgeInsets.symmetric(horizontal: AppSpacing.md),
           child: Row(
@@ -385,7 +468,11 @@ class _PostContentState extends ConsumerState<_PostContent> {
               ).textTheme.bodyMedium?.copyWith(color: colors.muted),
             ),
           ),
-        PostMedia(post: post),
+        PostMedia(
+          post: post,
+          offlineCached: detail.source == PageSource.cache,
+          onOpenExternally: () => _openPostExternally(post.shortCode),
+        ),
         Padding(
           padding: const EdgeInsets.fromLTRB(16, 18, 16, 16),
           child: Column(
@@ -423,7 +510,8 @@ class _PostContentState extends ConsumerState<_PostContent> {
                 score: post.counters.score,
                 reaction: post.userReaction,
                 onVote:
-                    post.permissions.canReact &&
+                    (post.permissions.canReact ||
+                            post.permissions.requiresAuthToReact) &&
                         !ref.watch(postControllerProvider).reactionPending
                     ? _react
                     : null,
@@ -453,7 +541,17 @@ class _PostContentState extends ConsumerState<_PostContent> {
             ),
           ),
         ),
-        if (detail.commentsFailure case final failure?)
+        if (detail.commentsFailure case final failure? when comments.isNotEmpty)
+          Padding(
+            padding: const EdgeInsets.all(AppSpacing.md),
+            child: _PostStatusBanner(
+              message: failure.message,
+              onRetry: () => ref
+                  .read(postControllerProvider.notifier)
+                  .load(post.shortCode),
+            ),
+          ),
+        if (detail.commentsFailure case final failure? when comments.isEmpty)
           SizedBox(
             height: 300,
             child: StateView.error(
@@ -485,8 +583,8 @@ class _PostContentState extends ConsumerState<_PostContent> {
               title: 'Комментариев пока нет',
               body: 'Начните обсуждение публикации.',
             ),
-          )
-        else
+          ),
+        if (comments.isNotEmpty)
           for (final comment in comments)
             Padding(
               padding: const EdgeInsets.symmetric(horizontal: AppSpacing.md),
@@ -504,6 +602,18 @@ class _PostContentState extends ConsumerState<_PostContent> {
   }
 
   Future<void> _react(Reaction reaction) async {
+    final post = widget.detail.summary;
+    if (post.permissions.requiresAuthToReact) {
+      final intent = await ref
+          .read(protectedIntentControllerProvider.notifier)
+          .createPostReaction(
+            postShortCode: post.shortCode,
+            reaction: reaction,
+          );
+      if (!mounted) return;
+      await _openAuth(intent);
+      return;
+    }
     await ref.read(postControllerProvider.notifier).react(reaction);
     if (!mounted) return;
     final failure = ref.read(postControllerProvider).failure;
@@ -515,6 +625,18 @@ class _PostContentState extends ConsumerState<_PostContent> {
   }
 
   Future<void> _reactToComment(Comment comment, Reaction reaction) async {
+    if (comment.permissions.requiresAuthToReact) {
+      final intent = await ref
+          .read(protectedIntentControllerProvider.notifier)
+          .createCommentReaction(
+            postShortCode: widget.detail.summary.shortCode,
+            commentId: comment.id,
+            reaction: reaction,
+          );
+      if (!mounted) return;
+      await _openAuth(intent);
+      return;
+    }
     await ref
         .read(postControllerProvider.notifier)
         .reactToComment(comment.id, reaction);
@@ -526,24 +648,87 @@ class _PostContentState extends ConsumerState<_PostContent> {
       ).showSnackBar(SnackBar(content: Text(failure.message)));
     }
   }
+
+  Future<void> _openAuth(PendingProtectedIntent intent) async {
+    final restored = await context.pushNamed<PendingProtectedIntent>(
+      'auth-twitch',
+      queryParameters: {'intent': intent.id, 'nonce': intent.nonce},
+    );
+    if (!mounted || restored == null) return;
+    ScaffoldMessenger.of(context).showSnackBar(
+      const SnackBar(
+        content: Text(
+          'Вход выполнен. Нажмите оценку ещё раз для подтверждения.',
+        ),
+      ),
+    );
+  }
+
+  Future<void> _openPostExternally(String shortCode) async {
+    try {
+      await ref
+          .read(externalUrlAdapterProvider)
+          .open(canonicalPostUri(shortCode));
+    } on Object {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Не удалось открыть публикацию.')),
+      );
+    }
+  }
 }
 
 class _CommentComposer extends ConsumerStatefulWidget {
-  const _CommentComposer({this.replyTarget, required this.onCancelReply});
+  const _CommentComposer({
+    required this.shortCode,
+    required this.draftBody,
+    required this.requiresAuth,
+    this.replyTarget,
+  });
 
+  final String shortCode;
+  final String draftBody;
+  final bool requiresAuth;
   final Comment? replyTarget;
-  final VoidCallback onCancelReply;
 
   @override
   ConsumerState<_CommentComposer> createState() => _CommentComposerState();
 }
 
-class _CommentComposerState extends ConsumerState<_CommentComposer> {
-  final _textController = TextEditingController();
+class _CommentComposerState extends ConsumerState<_CommentComposer>
+    with WidgetsBindingObserver {
+  late final _textController = TextEditingController(text: widget.draftBody);
   var _sending = false;
 
   @override
+  void initState() {
+    super.initState();
+    WidgetsBinding.instance.addObserver(this);
+  }
+
+  @override
+  void didUpdateWidget(covariant _CommentComposer oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (widget.draftBody != _textController.text) {
+      _textController.value = TextEditingValue(
+        text: widget.draftBody,
+        selection: TextSelection.collapsed(offset: widget.draftBody.length),
+      );
+    }
+  }
+
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    if (state == AppLifecycleState.inactive ||
+        state == AppLifecycleState.paused) {
+      ref.read(postControllerProvider.notifier).flushCommentDraft();
+    }
+  }
+
+  @override
   void dispose() {
+    WidgetsBinding.instance.removeObserver(this);
+    ref.read(postControllerProvider.notifier).flushCommentDraft();
     _textController.dispose();
     super.dispose();
   }
@@ -556,7 +741,8 @@ class _CommentComposerState extends ConsumerState<_CommentComposer> {
         top: false,
         child: Material(
           color: context.appColors.surface,
-          elevation: 8,
+          elevation: 0,
+          shape: Border(top: BorderSide(color: context.appColors.divider)),
           child: Padding(
             padding: const EdgeInsets.all(AppSpacing.sm),
             child: Row(
@@ -573,7 +759,11 @@ class _CommentComposerState extends ConsumerState<_CommentComposer> {
                             'Ответ для ${target.author.displayName}',
                             overflow: TextOverflow.ellipsis,
                           ),
-                          onDeleted: _sending ? null : widget.onCancelReply,
+                          onDeleted: _sending
+                              ? null
+                              : () => ref
+                                    .read(postControllerProvider.notifier)
+                                    .setReplyTarget(null),
                         ),
                       TextField(
                         controller: _textController,
@@ -581,6 +771,9 @@ class _CommentComposerState extends ConsumerState<_CommentComposer> {
                         minLines: 1,
                         maxLines: 4,
                         maxLength: 2000,
+                        onChanged: ref
+                            .read(postControllerProvider.notifier)
+                            .updateCommentDraft,
                         textInputAction: TextInputAction.newline,
                         decoration: const InputDecoration(
                           hintText: 'Написать комментарий',
@@ -593,14 +786,20 @@ class _CommentComposerState extends ConsumerState<_CommentComposer> {
                 ),
                 const SizedBox(width: AppSpacing.xs),
                 IconButton.filled(
-                  tooltip: 'Отправить комментарий',
+                  tooltip: widget.requiresAuth
+                      ? 'Войти для отправки комментария'
+                      : 'Отправить комментарий',
                   onPressed: _sending ? null : _send,
                   icon: _sending
                       ? const SizedBox.square(
                           dimension: 20,
                           child: CircularProgressIndicator(strokeWidth: 2),
                         )
-                      : const Icon(Icons.send_rounded),
+                      : Icon(
+                          widget.requiresAuth
+                              ? Icons.login_rounded
+                              : Icons.send_rounded,
+                        ),
                 ),
               ],
             ),
@@ -614,15 +813,55 @@ class _CommentComposerState extends ConsumerState<_CommentComposer> {
     final body = _textController.text.trim();
     if (body.isEmpty) return;
     setState(() => _sending = true);
-    await ref
-        .read(postControllerProvider.notifier)
-        .addComment(body, parentId: widget.replyTarget?.id);
+    final controller = ref.read(postControllerProvider.notifier);
+    controller.updateCommentDraft(body);
+    controller.setReplyTarget(widget.replyTarget?.id);
+    await controller.flushCommentDraft();
+    if (widget.requiresAuth) {
+      try {
+        final intent = await ref
+            .read(protectedIntentControllerProvider.notifier)
+            .createCommentDraft(
+              postShortCode: widget.shortCode,
+              parentCommentId: widget.replyTarget?.id,
+            );
+        if (!mounted) return;
+        final restored = await context.pushNamed<PendingProtectedIntent>(
+          'auth-twitch',
+          queryParameters: {'intent': intent.id, 'nonce': intent.nonce},
+        );
+        if (!mounted || restored == null) return;
+        final didRestore = await controller.restoreProtectedIntent(restored);
+        if (!mounted) return;
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(
+              didRestore
+                  ? 'Черновик восстановлен. Проверьте текст и нажмите отправку.'
+                  : 'Вход выполнен, но черновик восстановить не удалось.',
+            ),
+          ),
+        );
+      } on Object {
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(
+              content: Text('Не удалось безопасно сохранить действие.'),
+            ),
+          );
+        }
+      } finally {
+        if (mounted) setState(() => _sending = false);
+      }
+      return;
+    }
+    await controller.addComment(body, parentId: widget.replyTarget?.id);
     if (!mounted) return;
     final state = ref.read(postControllerProvider);
     setState(() => _sending = false);
     if (state.pendingCommentBody.isEmpty) {
       _textController.clear();
-      widget.onCancelReply();
+      controller.setReplyTarget(null);
       ScaffoldMessenger.of(
         context,
       ).showSnackBar(const SnackBar(content: Text('Комментарий отправлен')));
@@ -632,4 +871,14 @@ class _CommentComposerState extends ConsumerState<_CommentComposer> {
       );
     }
   }
+}
+
+Comment? _findCommentById(List<Comment> comments, String? id) {
+  if (id == null) return null;
+  for (final comment in comments) {
+    if (comment.id == id) return comment;
+    final nested = _findCommentById(comment.replies, id);
+    if (nested != null) return nested;
+  }
+  return null;
 }

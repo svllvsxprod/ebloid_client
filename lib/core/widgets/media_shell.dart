@@ -15,6 +15,8 @@ class MediaShell extends StatelessWidget {
     this.title,
     this.body,
     this.onRetry,
+    this.secondaryActionLabel,
+    this.onSecondaryAction,
     this.borderRadius,
     this.aspectRatio,
   });
@@ -26,6 +28,8 @@ class MediaShell extends StatelessWidget {
     this.title,
     this.body,
     this.onRetry,
+    this.secondaryActionLabel,
+    this.onSecondaryAction,
     this.borderRadius = AppRadius.media,
     this.aspectRatio,
   }) : aspect = MediaShellAspect.feed;
@@ -37,6 +41,8 @@ class MediaShell extends StatelessWidget {
     this.title,
     this.body,
     this.onRetry,
+    this.secondaryActionLabel,
+    this.onSecondaryAction,
     this.borderRadius = BorderRadius.zero,
     this.aspectRatio,
   }) : aspect = MediaShellAspect.detail;
@@ -47,6 +53,8 @@ class MediaShell extends StatelessWidget {
   final String? title;
   final String? body;
   final VoidCallback? onRetry;
+  final String? secondaryActionLabel;
+  final VoidCallback? onSecondaryAction;
   final BorderRadius? borderRadius;
   final double? aspectRatio;
 
@@ -65,18 +73,28 @@ class MediaShell extends StatelessWidget {
       label: title ?? 'Медиа публикации',
       child: AspectRatio(
         aspectRatio: _ratio,
-        child: ClipRRect(
-          borderRadius: borderRadius ?? BorderRadius.zero,
-          child: DecoratedBox(
-            decoration: BoxDecoration(color: colors.soft),
-            child:
-                child ??
-                _MediaPlaceholder(
-                  kind: placeholderKind ?? MediaPlaceholderKind.loading,
-                  title: title,
-                  body: body,
-                  onRetry: onRetry,
-                ),
+        child: Container(
+          foregroundDecoration: BoxDecoration(
+            border: Border.all(color: colors.divider),
+            borderRadius: borderRadius ?? BorderRadius.zero,
+          ),
+          child: ClipRRect(
+            borderRadius: borderRadius ?? BorderRadius.zero,
+            child: DecoratedBox(
+              decoration: BoxDecoration(
+                color: child == null ? colors.soft : colors.mediaBackdrop,
+              ),
+              child:
+                  child ??
+                  _MediaPlaceholder(
+                    kind: placeholderKind ?? MediaPlaceholderKind.loading,
+                    title: title,
+                    body: body,
+                    onRetry: onRetry,
+                    secondaryActionLabel: secondaryActionLabel,
+                    onSecondaryAction: onSecondaryAction,
+                  ),
+            ),
           ),
         ),
       ),
@@ -97,12 +115,16 @@ class _MediaPlaceholder extends StatelessWidget {
     this.title,
     this.body,
     this.onRetry,
+    this.secondaryActionLabel,
+    this.onSecondaryAction,
   });
 
   final MediaPlaceholderKind kind;
   final String? title;
   final String? body;
   final VoidCallback? onRetry;
+  final String? secondaryActionLabel;
+  final VoidCallback? onSecondaryAction;
 
   @override
   Widget build(BuildContext context) {
@@ -148,6 +170,14 @@ class _MediaPlaceholder extends StatelessWidget {
               if (onRetry != null) ...[
                 const SizedBox(height: AppSpacing.xs),
                 TextButton(onPressed: onRetry, child: const Text('Повторить')),
+              ],
+              if (onSecondaryAction != null &&
+                  secondaryActionLabel != null) ...[
+                const SizedBox(height: AppSpacing.xxs),
+                TextButton(
+                  onPressed: onSecondaryAction,
+                  child: Text(secondaryActionLabel!),
+                ),
               ],
             ],
           ),

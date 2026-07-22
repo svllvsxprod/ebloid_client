@@ -73,10 +73,14 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
     final sessionUser = currentUser.value;
     final login = widget.login ?? sessionUser?.login;
     _loadProfile(login);
+    final profileState = ref.watch(profileControllerProvider);
+    final visibleState = profileState.login == login
+        ? profileState
+        : const ProfileControllerState.initial();
     return Scaffold(
       appBar: AppTopBar(
-        title: login == null ? 'Профиль' : '@$login',
-        leading: login == null
+        title: 'Профиль',
+        leading: widget.login == null
             ? null
             : IconButton(
                 tooltip: 'Назад',
@@ -110,33 +114,9 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
           : _PublicProfileBody(
               login: login,
               sessionUser: widget.login == null ? sessionUser : null,
-              state: ref.watch(profileControllerProvider),
+              state: visibleState,
               scrollController: _scrollController,
             ),
-      bottomNavigationBar: AppBottomNav(
-        selectedIndex: 2,
-        onDestinationSelected: (index) {
-          if (index == 0) context.goNamed('feed');
-          if (index == 1) context.goNamed('videos');
-        },
-        items: const [
-          AppBottomNavItem(
-            icon: Icons.dynamic_feed_outlined,
-            selectedIcon: Icons.dynamic_feed_rounded,
-            label: 'Лента',
-          ),
-          AppBottomNavItem(
-            icon: Icons.smart_display_outlined,
-            selectedIcon: Icons.smart_display_rounded,
-            label: 'Видео',
-          ),
-          AppBottomNavItem(
-            icon: Icons.person_outline_rounded,
-            selectedIcon: Icons.person_rounded,
-            label: 'Профиль',
-          ),
-        ],
-      ),
     );
   }
 }
@@ -241,6 +221,16 @@ class _PublicProfileBody extends ConsumerWidget {
                 semanticsLabel: 'Профиль обновляется',
               ),
             ),
+          if (state.phase == LoadPhase.offlineWithCache)
+            SliverToBoxAdapter(
+              child: OfflineBanner(
+                message: _offlineProfileMessage(
+                  state.cachedAt,
+                  publicOnly: sessionUser != null,
+                ),
+                onRetry: () => controller.load(login),
+              ),
+            ),
           SliverToBoxAdapter(
             child: Padding(
               padding: const EdgeInsets.all(AppSpacing.md),
@@ -281,7 +271,7 @@ class _PublicProfileBody extends ConsumerWidget {
           SliverList.builder(
             itemCount: state.items.length,
             itemBuilder: (context, index) =>
-                PostCard(post: state.items[index], onVote: (_) {}),
+                PostCard(post: state.items[index], onVote: null),
           ),
           SliverToBoxAdapter(
             child: _PaginationFooter(
@@ -294,6 +284,18 @@ class _PublicProfileBody extends ConsumerWidget {
       ),
     );
   }
+}
+
+String _offlineProfileMessage(DateTime? cachedAt, {required bool publicOnly}) {
+  final scope = publicOnly ? ' · только публичная выдача' : '';
+  if (cachedAt == null) return 'Показаны сохранённые публикации профиля$scope';
+  final local = cachedAt.toLocal();
+  final day = local.day.toString().padLeft(2, '0');
+  final month = local.month.toString().padLeft(2, '0');
+  final hour = local.hour.toString().padLeft(2, '0');
+  final minute = local.minute.toString().padLeft(2, '0');
+  return 'Показаны сохранённые публикации профиля · данные от '
+      '$day.$month $hour:$minute$scope';
 }
 
 class _SessionProfileHeader extends StatelessWidget {

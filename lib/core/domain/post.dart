@@ -129,6 +129,8 @@ final class PostPermissions {
   const PostPermissions({
     this.canReact = false,
     this.canComment = false,
+    this.requiresAuthToReact = false,
+    this.requiresAuthToComment = false,
     this.canShare = true,
     this.canEdit = false,
     this.canDelete = false,
@@ -136,6 +138,8 @@ final class PostPermissions {
 
   final bool canReact;
   final bool canComment;
+  final bool requiresAuthToReact;
+  final bool requiresAuthToComment;
   final bool canShare;
   final bool canEdit;
   final bool canDelete;
@@ -231,23 +235,36 @@ final class PostDetail {
     required this.summary,
     required this.comments,
     this.commentsFailure,
-  });
+    this.source = PageSource.remote,
+    this.scope = PageScope.public,
+    this.fetchedAt,
+  }) : assert(
+         source != PageSource.cache || fetchedAt != null,
+         'Cached post detail requires fetchedAt.',
+       );
 
   final PostSummary summary;
   final List<Comment> comments;
   final DomainFailure? commentsFailure;
+  final PageSource source;
+  final PageScope scope;
+  final DateTime? fetchedAt;
 }
 
 final class CommentPermissions {
   const CommentPermissions({
     this.canReply = false,
     this.canReact = false,
+    this.requiresAuthToReply = false,
+    this.requiresAuthToReact = false,
     this.canEdit = false,
     this.canDelete = false,
   });
 
   final bool canReply;
   final bool canReact;
+  final bool requiresAuthToReply;
+  final bool requiresAuthToReact;
   final bool canEdit;
   final bool canDelete;
 }

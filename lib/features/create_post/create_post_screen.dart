@@ -8,9 +8,11 @@ import 'package:go_router/go_router.dart';
 import '../../app/theme/app_theme.dart';
 import '../../core/domain/create_post.dart';
 import '../../core/domain/post.dart';
+import '../../core/domain/protected_intent.dart';
 import '../../core/platform/platform_adapters.dart';
 import '../../core/widgets/widgets.dart';
 import '../auth/auth_controller.dart';
+import '../auth/protected_intent_controller.dart';
 import 'create_post_controller.dart';
 
 class CreatePostScreen extends ConsumerStatefulWidget {
@@ -101,7 +103,7 @@ class _CreatePostScreenState extends ConsumerState<CreatePostScreen>
           title: 'Войдите для публикации',
           body: 'Черновик сохранится, а после входа можно продолжить.',
           actionLabel: 'Войти через Twitch',
-          onAction: () => context.pushNamed('auth-twitch'),
+          onAction: _openAuthForCreate,
         ),
       );
     }
@@ -280,6 +282,31 @@ class _CreatePostScreenState extends ConsumerState<CreatePostScreen>
     );
   }
 
+  Future<void> _openAuthForCreate() async {
+    try {
+      await _flushDraft();
+      final intent = await ref
+          .read(protectedIntentControllerProvider.notifier)
+          .createPostDraftContinuation();
+      if (!mounted) return;
+      final restored = await context.pushNamed<PendingProtectedIntent>(
+        'auth-twitch',
+        queryParameters: {'intent': intent.id, 'nonce': intent.nonce},
+      );
+      if (!mounted || restored == null) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Вход выполнен. Проверьте черновик перед публикацией.'),
+        ),
+      );
+    } on Object {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Не удалось безопасно продолжить вход.')),
+      );
+    }
+  }
+
   Future<void> _restore() async {
     if (!ref.read(createFlowAvailableProvider)) {
       if (mounted) setState(() => _restoring = false);
@@ -452,7 +479,7 @@ class _MediaPicker extends StatelessWidget {
             onTap: enabled ? onAdd : null,
             child: CustomPaint(
               painter: _DashedDropzonePainter(
-                color: context.appColors.muted,
+                color: context.appColors.accent.withValues(alpha: .72),
                 radius: AppRadius.lg,
               ),
               child: Container(
@@ -460,7 +487,7 @@ class _MediaPicker extends StatelessWidget {
                 width: double.infinity,
                 padding: const EdgeInsets.all(AppSpacing.xl),
                 decoration: BoxDecoration(
-                  color: context.appColors.surface,
+                  color: context.appColors.surfaceElevated,
                   borderRadius: BorderRadius.circular(AppRadius.lg),
                 ),
                 child: Column(
@@ -469,7 +496,7 @@ class _MediaPicker extends StatelessWidget {
                     Icon(
                       Icons.add_photo_alternate_outlined,
                       size: 36,
-                      color: context.appColors.fg,
+                      color: context.appColors.accent,
                     ),
                     const SizedBox(height: AppSpacing.sm),
                     const Text(
@@ -587,7 +614,7 @@ class _LocalMediaThumbnail extends StatelessWidget {
       label: label,
       child: ExcludeSemantics(
         child: ColoredBox(
-          color: context.appColors.divider,
+          color: context.appColors.soft,
           child: Icon(icon, color: context.appColors.muted),
         ),
       ),
@@ -699,12 +726,25 @@ class _DraftSwitch extends StatelessWidget {
     return Semantics(
       toggled: value,
       label: '$title. $description',
-      child: SwitchListTile(
-        contentPadding: EdgeInsets.zero,
-        title: Text(title),
-        subtitle: Text(description),
-        value: value,
-        onChanged: enabled ? onChanged : null,
+      child: Padding(
+        padding: const EdgeInsets.only(bottom: AppSpacing.xs),
+        child: DecoratedBox(
+          decoration: BoxDecoration(
+            color: context.appColors.surface,
+            border: Border.all(color: context.appColors.divider),
+            borderRadius: BorderRadius.circular(AppRadius.sm),
+          ),
+          child: SwitchListTile(
+            contentPadding: const EdgeInsets.symmetric(
+              horizontal: AppSpacing.md,
+              vertical: AppSpacing.xxs,
+            ),
+            title: Text(title),
+            subtitle: Text(description),
+            value: value,
+            onChanged: enabled ? onChanged : null,
+          ),
+        ),
       ),
     );
   }
@@ -726,7 +766,7 @@ class _UploadPanel extends StatelessWidget {
           '${(progress.totalFraction * 100).round()} процентов',
       child: DecoratedBox(
         decoration: BoxDecoration(
-          color: context.appColors.surface,
+          color: context.appColors.surfaceElevated,
           border: Border.all(color: context.appColors.divider),
           borderRadius: BorderRadius.circular(AppRadius.sm),
         ),

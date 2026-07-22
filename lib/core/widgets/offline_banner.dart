@@ -28,13 +28,16 @@ class OfflineBanner extends StatelessWidget {
           vertical: AppSpacing.xs,
         ),
         decoration: BoxDecoration(
-          color: colors.surface,
-          border: Border.all(color: colors.controlBorder),
+          color: Color.alphaBlend(
+            colors.warning.withValues(alpha: .08),
+            colors.surfaceElevated,
+          ),
+          border: Border.all(color: colors.warning.withValues(alpha: .48)),
           borderRadius: AppRadius.control,
         ),
         child: Row(
           children: [
-            Icon(Icons.cloud_off_outlined, size: 20, color: colors.muted),
+            Icon(Icons.cloud_off_outlined, size: 20, color: colors.warning),
             const SizedBox(width: AppSpacing.xs),
             Expanded(
               child: Text(

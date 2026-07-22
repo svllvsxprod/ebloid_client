@@ -40,6 +40,10 @@ final class DomainFailure {
 
 enum PageCursorKind { offset, cursor, page }
 
+enum PageSource { remote, cache }
+
+enum PageScope { public, userScoped }
+
 final class PageCursor {
   const PageCursor(this.value, {this.kind = PageCursorKind.offset});
 
@@ -55,10 +59,22 @@ final class PageCursor {
 }
 
 final class PageResult<T> {
-  const PageResult({required this.items, this.nextCursor});
+  const PageResult({
+    required this.items,
+    this.nextCursor,
+    this.source = PageSource.remote,
+    this.scope = PageScope.public,
+    this.fetchedAt,
+  }) : assert(
+         source != PageSource.cache || fetchedAt != null,
+         'Cached pages require fetchedAt.',
+       );
 
   final List<T> items;
   final PageCursor? nextCursor;
+  final PageSource source;
+  final PageScope scope;
+  final DateTime? fetchedAt;
 
   bool get hasMore => nextCursor != null;
 }

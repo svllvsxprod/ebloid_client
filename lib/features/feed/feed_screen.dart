@@ -6,13 +6,17 @@ import '../../app/app_scroll_behavior.dart';
 import '../../app/theme/app_theme.dart';
 import '../../core/domain/content_state.dart';
 import '../../core/domain/feed.dart';
+import '../../core/domain/protected_intent.dart';
 import '../../core/widgets/widgets.dart';
 import '../auth/auth_controller.dart';
+import '../auth/protected_intent_controller.dart';
 import 'feed_controller.dart';
 import 'post_card.dart';
 
 class FeedScreen extends ConsumerStatefulWidget {
-  const FeedScreen({super.key});
+  const FeedScreen({super.key, this.restoredProtectedIntent});
+
+  final PendingProtectedIntent? restoredProtectedIntent;
 
   @override
   ConsumerState<FeedScreen> createState() => _FeedScreenState();
@@ -20,6 +24,7 @@ class FeedScreen extends ConsumerStatefulWidget {
 
 class _FeedScreenState extends ConsumerState<FeedScreen> {
   late final ScrollController _scrollController;
+  String? _announcedIntentId;
 
   @override
   void initState() {
@@ -36,7 +41,19 @@ class _FeedScreenState extends ConsumerState<FeedScreen> {
       if (state.items.isEmpty && state.phase == LoadPhase.initialLoading) {
         ref.read(feedControllerProvider.notifier).load();
       }
+      _announceProtectedIntent();
     });
+  }
+
+  @override
+  void didUpdateWidget(covariant FeedScreen oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (oldWidget.restoredProtectedIntent?.id !=
+        widget.restoredProtectedIntent?.id) {
+      WidgetsBinding.instance.addPostFrameCallback(
+        (_) => _announceProtectedIntent(),
+      );
+    }
   }
 
   @override
@@ -52,6 +69,24 @@ class _FeedScreenState extends ConsumerState<FeedScreen> {
     if (_scrollController.position.extentAfter < 720) {
       ref.read(feedControllerProvider.notifier).paginate();
     }
+  }
+
+  void _announceProtectedIntent() {
+    final intent = widget.restoredProtectedIntent;
+    if (!mounted ||
+        intent == null ||
+        intent.id == _announcedIntentId ||
+        intent.kind != ProtectedIntentKind.postReaction) {
+      return;
+    }
+    _announcedIntentId = intent.id;
+    ScaffoldMessenger.of(context).showSnackBar(
+      const SnackBar(
+        content: Text(
+          'Вход выполнен. Нажмите оценку ещё раз для подтверждения.',
+        ),
+      ),
+    );
   }
 
   @override
@@ -204,30 +239,6 @@ class _FeedScreenState extends ConsumerState<FeedScreen> {
         onPressed: () => context.pushNamed('create'),
         child: const Icon(Icons.add_rounded),
       ),
-      bottomNavigationBar: AppBottomNav(
-        selectedIndex: 0,
-        onDestinationSelected: (index) {
-          if (index == 1) context.goNamed('videos');
-          if (index == 2) context.goNamed('profile');
-        },
-        items: const [
-          AppBottomNavItem(
-            icon: Icons.dynamic_feed_outlined,
-            selectedIcon: Icons.dynamic_feed_rounded,
-            label: 'Лента',
-          ),
-          AppBottomNavItem(
-            icon: Icons.smart_display_outlined,
-            selectedIcon: Icons.smart_display_rounded,
-            label: 'Видео',
-          ),
-          AppBottomNavItem(
-            icon: Icons.person_outline_rounded,
-            selectedIcon: Icons.person_rounded,
-            label: 'Профиль',
-          ),
-        ],
-      ),
     );
   }
 }
@@ -249,8 +260,9 @@ class _SortSegment extends StatelessWidget {
       label: 'Сортировка ленты',
       child: DecoratedBox(
         decoration: BoxDecoration(
-          color: colors.soft,
-          borderRadius: BorderRadius.circular(13),
+          color: colors.surface,
+          border: Border.all(color: colors.divider),
+          borderRadius: BorderRadius.circular(AppRadius.md),
         ),
         child: Padding(
           padding: const EdgeInsets.all(3),
@@ -325,9 +337,13 @@ class _SegmentButton extends StatelessWidget {
       selected: selected,
       label: label,
       child: Material(
-        color: selected ? colors.surface : Colors.transparent,
-        borderRadius: BorderRadius.circular(10),
-        elevation: selected ? 1 : 0,
+        color: selected ? colors.soft : Colors.transparent,
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(10),
+          side: BorderSide(
+            color: selected ? colors.accent : Colors.transparent,
+          ),
+        ),
         child: InkWell(
           borderRadius: BorderRadius.circular(10),
           onTap: onTap,
@@ -337,8 +353,8 @@ class _SegmentButton extends StatelessWidget {
               child: Text(
                 label,
                 style: Theme.of(context).textTheme.labelLarge?.copyWith(
-                  color: selected ? colors.fg : colors.muted,
-                  fontWeight: FontWeight.w600,
+                  color: selected ? colors.accent : colors.muted,
+                  fontWeight: selected ? FontWeight.w700 : FontWeight.w600,
                   letterSpacing: .1,
                 ),
               ),
@@ -405,7 +421,7 @@ class _FeedBody extends ConsumerWidget {
         LoadPhase.unauthorized => const _StateList(
           child: StateView.unauthorized(
             title: 'Требуется вход',
-            body: 'Twitch OAuth будет подключён после согласования AUTH-01.',
+            body: 'Войдите через Twitch и вернитесь к ленте.',
           ),
         ),
         LoadPhase.restricted => const _StateList(
@@ -438,7 +454,7 @@ class _FeedBody extends ConsumerWidget {
           if (index == 0) {
             if (state.phase == LoadPhase.offlineWithCache) {
               return OfflineBanner(
-                message: 'Показана сохранённая лента',
+                message: _offlineFeedMessage(state.cachedAt),
                 onRetry: controller.load,
               );
             }
@@ -458,6 +474,33 @@ class _FeedBody extends ConsumerWidget {
               onVote: state.hydratingReactionPostIds.contains(post.id)
                   ? null
                   : (reaction) async {
+                      if (post.permissions.requiresAuthToReact) {
+                        final intent = await ref
+                            .read(protectedIntentControllerProvider.notifier)
+                            .createPostReaction(
+                              postShortCode: post.shortCode,
+                              reaction: reaction,
+                              returnToFeed: true,
+                            );
+                        if (!context.mounted) return;
+                        final restored = await context
+                            .pushNamed<PendingProtectedIntent>(
+                              'auth-twitch',
+                              queryParameters: {
+                                'intent': intent.id,
+                                'nonce': intent.nonce,
+                              },
+                            );
+                        if (!context.mounted || restored == null) return;
+                        ScaffoldMessenger.of(context).showSnackBar(
+                          const SnackBar(
+                            content: Text(
+                              'Вход выполнен. Нажмите оценку ещё раз для подтверждения.',
+                            ),
+                          ),
+                        );
+                        return;
+                      }
                       await controller.react(post.id, reaction);
                       if (!context.mounted) return;
                       final failure = ref.read(feedControllerProvider).failure;
@@ -491,6 +534,16 @@ class _FeedBody extends ConsumerWidget {
       ),
     );
   }
+}
+
+String _offlineFeedMessage(DateTime? cachedAt) {
+  if (cachedAt == null) return 'Показана сохранённая лента';
+  final local = cachedAt.toLocal();
+  final day = local.day.toString().padLeft(2, '0');
+  final month = local.month.toString().padLeft(2, '0');
+  final hour = local.hour.toString().padLeft(2, '0');
+  final minute = local.minute.toString().padLeft(2, '0');
+  return 'Показана сохранённая лента · данные от $day.$month $hour:$minute';
 }
 
 class _StateList extends StatelessWidget {
